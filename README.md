@@ -1,34 +1,28 @@
-
-# Shaman Digital Twin — Architecture
-
-System Architecture
-
-- Frontend (React)
-- Backend (FastAPI)
-
-```mermaid
-graph LR
-  subgraph Frontend
-    A[React App]
-  end
-  subgraph Backend
-    B[FastAPI Mock API]
-  end
-  A -- HTTP --> B
-```
+# Shaman Digital Twin
 
 ![Image of a flowchart of the software architecture](SoftwareArchitectureDiagram.png)
 
 
 # Digital Twin UI + Mock API
 
-This repository contains a Vite React frontend and a FastAPI backend scaffold with mock endpoints. The goal is to provide an end-to-end flow where the React UI populates fields and graphs from API responses (mock data for now).
+This repository contains a Vite React frontend and a FastAPI backend scaffold with mock endpoints.
 
-Frontend:
-- Folder: `frontend`
-- Start dev server: `npm install` then `npm run dev` (from `frontend`)
+The goal is to provide an end-to-end flow where the React UI populates fields and graphs from API responses (mock data for now).
 
-Backend:
-- Folder: `backend`
-- Create virtualenv and install: `python -m venv .venv && .venv\Scripts\pip install -r requirements.txt`
-- Run: `uvicorn app.main:app --reload --port 8000` (from `backend`)
+# Testing 💻
+
+Last tested using Python 3.14, npm 11.6.2, and Node.js v22.16.0!
+
+```bash
+cd frontend
+npm install
+npm run dev
+cd ..
+```
+
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
