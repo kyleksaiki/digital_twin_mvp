@@ -1,63 +1,103 @@
-"""Run-related API endpoints."""
-from fastapi import APIRouter
-from app.models import RunDetail
-from app.mock_data import MOCK_RUNS
+"""Run-related API endpoints — DB-backed version."""
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+from app.models import Run, RunDetail
+from app.database import get_db
+from app.db_models import RunRow, RunMetricsRow
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 
+def _row_to_run(row: RunRow) -> Run:
+    return Run(
+        id=row.id,
+        name=row.name,
+        date=str(row.date),
+        scenario=row.scenario,
+        model=row.model,
+        hw=row.hw,
+        duration=row.duration,
+        status=row.status,
+    )
+
+
 @router.get("")
-def list_runs():
+def list_runs(db: Session = Depends(get_db)):
     """List all available simulation runs."""
-    return {"runs": MOCK_RUNS}
+    rows = db.query(RunRow).order_by(RunRow.date.desc()).all()
+    return {"runs": [_row_to_run(r) for r in rows]}
 
 
 @router.get("/{run_id}")
-def get_run_detail(run_id: int) -> RunDetail:
+def get_run_detail(run_id: int, db: Session = Depends(get_db)) -> RunDetail:
     """Get detailed information for a specific run."""
-    run = next((r for r in MOCK_RUNS if r.id == run_id), None)
-    
-    if not run:
-        # Fallback for invalid run_id
+    row = db.query(RunRow).filter(RunRow.id == run_id).first()
+
+    if not row:
         return RunDetail(
-            id=run_id,
-            name="Unknown Run",
-            model="Unknown",
-            hw="Unknown",
-            duration="N/A",
-            status="unknown",
-            metrics={},
+            id=run_id, name="Unknown Run", model="Unknown",
+            hw="Unknown", duration="N/A", status="unknown", metrics={},
         )
 
-    # Generate mock metrics based on status
-    base_metrics = {
-        "battery": 62,
-        "throughput": 12.4,
-        "accuracy": 94.2,
-        "fpr": 6.8,
-        "latency": 48,
-        "detections": 127,
-    }
-    
-    # Adjust metrics based on status
-    if run.status == "warning":
-        base_metrics["congestion"] = 65
-        base_metrics["battery"] = 35
-        base_metrics["accuracy"] = 88.5
-    elif run.status == "fail":
-        base_metrics["congestion"] = 92
-        base_metrics["battery"] = 15
-        base_metrics["accuracy"] = 78.2
-    else:  # pass
-        base_metrics["congestion"] = 22
-    
+    m: RunMetricsRow = row.metrics
+    metrics = {}
+    if m:
+        metrics = {
+            "accuracy":        m.accuracy,
+            "fpr":             m.fpr,
+            "latency":         m.latency_ms,
+            "detections":      m.detection_count,
+            "battery":         m.battery_health,
+            "congestion":      m.congestion,
+            "throughput":      m.throughput,
+            "conf_threshold":  m.conf_threshold,
+        }
+
     return RunDetail(
-        id=run.id,
-        name=run.name,
-        model=run.model,
-        hw=run.hw,
-        duration=run.duration,
-        status=run.status,
-        metrics=base_metrics,
+        id=row.id, name=row.name, model=row.model,
+        hw=row.hw, duration=row.duration, status=row.status,
+        metrics=metrics,
     )
 
+
+@router.get("/{run_id}/dashboard")
+def get_dashboard(run_id: int, db: Session = Depends(get_db)):
+    """
+    Single endpoint that returns everything the Overview Dashboard needs.
+    Frontend calls this once to populate all cards and charts.
+    """
+    row = db.query(RunRow).filter(RunRow.id == run_id).first()
+    if not row:
+        return {"error": "Run not found"}
+
+    m = row.metrics
+
+    return {
+        "run": {
+            "id": row.id, "name": row.name, "date": str(row.date),
+            "scenario": row.scenario, "model": row.model,
+            "hw": row.hw, "duration": row.duration, "status": row.status,
+        },
+        "metrics": {
+            "accuracy":        m.accuracy        if m else None,
+            "fpr":             m.fpr             if m else None,
+            "latency_ms":      m.latency_ms      if m else None,
+            "detection_count": m.detection_count if m else None,
+            "battery_health":  m.battery_health  if m else None,
+            "congestion":      m.congestion      if m else None,
+            "throughput":      m.throughput      if m else None,
+            "conf_threshold":  m.conf_threshold  if m else None,
+        },
+        "detections_by_type": [
+            {"event_type": d.event_type, "count": d.count}
+            for d in sorted(row.detections, key=lambda x: -x.count)
+        ],
+        "latency_by_rank": [
+            {"rank": lr.rank, "latency_ms": lr.latency_ms}
+            for lr in sorted(row.latency_by_rank, key=lambda x: x.rank)
+        ],
+        "accuracy_confidence_curve": [
+            {"threshold": pt.threshold, "accuracy": pt.accuracy, "fpr": pt.fpr}
+            for pt in sorted(row.acc_curve, key=lambda x: x.threshold)
+        ],
+    }

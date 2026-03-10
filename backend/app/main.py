@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import runs, network, ai
+from app.database import init_db
+from app.seed import seed
 
 app = FastAPI(
     title="Digital Twin API",
@@ -8,7 +10,6 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Enable CORS for development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,14 +18,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
 app.include_router(runs.router)
 app.include_router(network.router)
 app.include_router(ai.router)
 
 
+@app.on_event("startup")
+def on_startup():
+    """Create tables and seed mock data on first run."""
+    init_db()
+    seed()
+
+
 @app.get("/health")
 def health_check():
-    """Health check endpoint."""
     return {"status": "ok"}
-
