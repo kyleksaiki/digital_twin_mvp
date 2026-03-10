@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Digital Twin — ER Diagram</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #ffffff; font-family: 'Segoe UI', system-ui, sans-serif; padding: 32px; }
+  h1 { color: #111; font-size: 22px; margin-bottom: 4px; }
+  p  { color: #555; font-size: 13px; margin-bottom: 28px; }
+  svg { width: 100%; max-width: 1400px; display: block; }
+</style>
+</head>
+<body>
+<h1>Shaman Digital Twin Relationship Diagram</h1>
+
+
+<svg viewBox="0 0 1400 1100" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="arr" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+  </marker>
+  <marker id="arr-gray" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+    <polygon points="0 0, 10 3.5, 0 7" fill="#aaa"/>
+  </marker>
+</defs>
+
+<!-- =====================================================
+     TABLE MACRO (drawn manually, exact pixel positions)
+     Each table: header at top, rows below, dividers
+     ===================================================== -->
+
+<!-- ── RUNS  (x=460, y=30, w=220, h=208) ── -->
+<g id="tbl-runs">
+  <rect x="460" y="30" width="220" height="208" rx="5" fill="white" stroke="#222" stroke-width="1.5"/>
+  <rect x="460" y="30" width="220" height="28" rx="5" fill="#222"/>
+  <rect x="460" y="44" width="220" height="14" fill="#222"/>
+  <text x="570" y="48" text-anchor="middle" fill="white" font-size="13" font-weight="700" font-family="monospace">runs</text>
+  <!-- rows -->
+  <rect x="461" y="58" width="218" height="18" fill="#fffde7"/>
+  <text x="468" y="71" fill="#111" font-size="11" font-family="monospace">id</text><text x="600" y="71" fill="#555" font-size="10" font-family="monospace">INT AI</text><text x="666" y="71" fill="#7a5f00" font-size="9" font-weight="700">PK</text>
+  <rect x="461" y="76" width="218" height="18" fill="white"/>
+  <text x="468" y="89" fill="#111" font-size="11" font-family="monospace">name</text><text x="600" y="89" fill="#555" font-size="10" font-family="monospace">VARCHAR(100)</text>
+  <rect x="461" y="94" width="218" height="18" fill="#f5f5f5"/>
+  <text x="468" y="107" fill="#111" font-size="11" font-family="monospace">date</text><text x="600" y="107" fill="#555" font-size="10" font-family="monospace">DATE</text>
+  <rect x="461" y="112" width="218" height="18" fill="white"/>
+  <text x="468" y="125" fill="#111" font-size="11" font-family="monospace">scenario</text><text x="600" y="125" fill="#555" font-size="10" font-family="monospace">VARCHAR(100)</text>
+  <rect x="461" y="130" width="218" height="18" fill="#f5f5f5"/>
+  <text x="468" y="143" fill="#111" font-size="11" font-family="monospace">model</text><text x="600" y="143" fill="#555" font-size="10" font-family="monospace">VARCHAR(100)</text>
+  <rect x="461" y="148" width="218" height="18" fill="white"/>
+  <text x="468" y="161" fill="#111" font-size="11" font-family="monospace">hw</text><text x="600" y="161" fill="#555" font-size="10" font-family="monospace">VARCHAR(50)</text>
+  <rect x="461" y="166" width="218" height="18" fill="#f5f5f5"/>
+  <text x="468" y="179" fill="#111" font-size="11" font-family="monospace">duration</text><text x="600" y="179" fill="#555" font-size="10" font-family="monospace">VARCHAR(20)</text>
+  <rect x="461" y="184" width="218" height="18" fill="white"/>
+  <text x="468" y="197" fill="#111" font-size="11" font-family="monospace">status</text><text x="600" y="197" fill="#555" font-size="10" font-family="monospace">ENUM</text>
+  <rect x="461" y="202" width="218" height="18" fill="#f5f5f5"/>
+  <text x="468" y="215" fill="#111" font-size="11" font-family="monospace">created_at</text><text x="600" y="215" fill="#555" font-size="10" font-family="monospace">TIMESTAMP</text>
+  <!-- dividers -->
+  <line x1="460" y1="58" x2="680" y2="58" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="76" x2="680" y2="76" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="94" x2="680" y2="94" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="112" x2="680" y2="112" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="130" x2="680" y2="130" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="148" x2="680" y2="148" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="166" x2="680" y2="166" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="184" x2="680" y2="184" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="202" x2="680" y2="202" stroke="#ddd" stroke-width="0.5"/>
+</g>
+<!-- runs bottom edge y=238, right edge x=680, left edge x=460, mid-right (680,134), mid-left (460,134), mid-bottom (570,238) -->
+
+<!-- ── RUN_METRICS  (x=880, y=30, w=230, h=226) ── -->
+<g id="tbl-run_metrics">
+  <rect x="880" y="30" width="230" height="226" rx="5" fill="white" stroke="#222" stroke-width="1.5"/>
+  <rect x="880" y="30" width="230" height="28" rx="5" fill="#222"/>
+  <rect x="880" y="44" width="230" height="14" fill="#222"/>
+  <text x="995" y="48" text-anchor="middle" fill="white" font-size="13" font-weight="700" font-family="monospace">run_metrics</text>
+  <rect x="881" y="58" width="228" height="18" fill="#fffde7"/>
+  <text x="888" y="71" fill="#111" font-size="11" font-family="monospace">id</text><text x="990" y="71" fill="#555" font-size="10" font-family="monospace">INT AI</text><text x="1095" y="71" fill="#7a5f00" font-size="9" font-weight="700">PK</text>
+  <rect x="881" y="76" width="228" height="18" fill="#e8f4fd"/>
+  <text x="888" y="89" fill="#111" font-size="11" font-family="monospace">run_id</text><text x="990" y="89" fill="#555" font-size="10" font-family="monospace">INT FK</text><text x="1095" y="89" fill="#1a4a7a" font-size="9" font-weight="700">FK</text>
+  <rect x="881" y="94" width="228" height="18" fill="#f5f5f5"/>
+  <text x="888" y="107" fill="#111" font-size="11" font-family="monospace">accuracy</text><text x="990" y="107" fill="#555" font-size="10" font-family="monospace">FLOAT</text>
+  <rect x="881" y="112" width="228" height="18" fill="white"/>
+  <text x="888" y="125" fill="#111" font-size="11" font-family="monospace">fpr</text><text x="990" y="125" fill="#555" font-size="10" font-family="monospace">FLOAT</text>
+  <rect x="881" y="130" width="228" height="18" fill="#f5f5f5"/>
+  <text x="888" y="143" fill="#111" font-size="11" font-family="monospace">latency_ms</text><text x="990" y="143" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <rect x="881" y="148" width="228" height="18" fill="white"/>
+  <text x="888" y="161" fill="#111" font-size="11" font-family="monospace">detection_count</text><text x="1040" y="161" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <rect x="881" y="166" width="228" height="18" fill="#f5f5f5"/>
+  <text x="888" y="179" fill="#111" font-size="11" font-family="monospace">battery_health</text><text x="1040" y="179" fill="#555" font-size="10" font-family="monospace">FLOAT</text>
+  <rect x="881" y="184" width="228" height="18" fill="white"/>
+  <text x="888" y="197" fill="#111" font-size="11" font-family="monospace">congestion</text><text x="990" y="197" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <rect x="881" y="202" width="228" height="18" fill="#f5f5f5"/>
+  <text x="888" y="215" fill="#111" font-size="11" font-family="monospace">throughput</text><text x="990" y="215" fill="#555" font-size="10" font-family="monospace">FLOAT</text>
+  <rect x="881" y="220" width="228" height="18" fill="white"/>
+  <text x="888" y="233" fill="#111" font-size="11" font-family="monospace">conf_threshold</text><text x="1040" y="233" fill="#555" font-size="10" font-family="monospace">FLOAT</text>
+  <line x1="880" y1="58" x2="1110" y2="58" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="76" x2="1110" y2="76" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="94" x2="1110" y2="94" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="112" x2="1110" y2="112" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="130" x2="1110" y2="130" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="148" x2="1110" y2="148" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="166" x2="1110" y2="166" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="184" x2="1110" y2="184" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="202" x2="1110" y2="202" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="220" x2="1110" y2="220" stroke="#ddd" stroke-width="0.5"/>
+</g>
+
+<!-- ── DETECTIONS_BY_TYPE  (x=880, y=310, w=230, h=100) ── -->
+<g id="tbl-det">
+  <rect x="880" y="310" width="230" height="100" rx="5" fill="white" stroke="#222" stroke-width="1.5"/>
+  <rect x="880" y="310" width="230" height="28" rx="5" fill="#222"/>
+  <rect x="880" y="324" width="230" height="14" fill="#222"/>
+  <text x="995" y="328" text-anchor="middle" fill="white" font-size="12" font-weight="700" font-family="monospace">detections_by_type</text>
+  <rect x="881" y="338" width="228" height="18" fill="#fffde7"/>
+  <text x="888" y="351" fill="#111" font-size="11" font-family="monospace">id</text><text x="1095" y="351" fill="#7a5f00" font-size="9" font-weight="700">PK</text>
+  <rect x="881" y="356" width="228" height="18" fill="#e8f4fd"/>
+  <text x="888" y="369" fill="#111" font-size="11" font-family="monospace">run_id</text><text x="990" y="369" fill="#555" font-size="10" font-family="monospace">INT FK</text><text x="1095" y="369" fill="#1a4a7a" font-size="9" font-weight="700">FK</text>
+  <rect x="881" y="374" width="228" height="18" fill="#f5f5f5"/>
+  <text x="888" y="387" fill="#111" font-size="11" font-family="monospace">event_type</text><text x="990" y="387" fill="#555" font-size="10" font-family="monospace">VARCHAR(50)</text>
+  <rect x="881" y="392" width="228" height="18" fill="white"/>
+  <text x="888" y="405" fill="#111" font-size="11" font-family="monospace">count</text><text x="990" y="405" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <line x1="880" y1="338" x2="1110" y2="338" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="356" x2="1110" y2="356" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="374" x2="1110" y2="374" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="392" x2="1110" y2="392" stroke="#ddd" stroke-width="0.5"/>
+</g>
+
+<!-- ── LATENCY_BY_RANK  (x=880, y=460, w=230, h=100) ── -->
+<g id="tbl-lat">
+  <rect x="880" y="460" width="230" height="100" rx="5" fill="white" stroke="#222" stroke-width="1.5"/>
+  <rect x="880" y="460" width="230" height="28" rx="5" fill="#222"/>
+  <rect x="880" y="474" width="230" height="14" fill="#222"/>
+  <text x="995" y="478" text-anchor="middle" fill="white" font-size="13" font-weight="700" font-family="monospace">latency_by_rank</text>
+  <rect x="881" y="488" width="228" height="18" fill="#fffde7"/>
+  <text x="888" y="501" fill="#111" font-size="11" font-family="monospace">id</text><text x="1095" y="501" fill="#7a5f00" font-size="9" font-weight="700">PK</text>
+  <rect x="881" y="506" width="228" height="18" fill="#e8f4fd"/>
+  <text x="888" y="519" fill="#111" font-size="11" font-family="monospace">run_id</text><text x="990" y="519" fill="#555" font-size="10" font-family="monospace">INT FK</text><text x="1095" y="519" fill="#1a4a7a" font-size="9" font-weight="700">FK</text>
+  <rect x="881" y="524" width="228" height="18" fill="#f5f5f5"/>
+  <text x="888" y="537" fill="#111" font-size="11" font-family="monospace">rank</text><text x="990" y="537" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <rect x="881" y="542" width="228" height="18" fill="white"/>
+  <text x="888" y="555" fill="#111" font-size="11" font-family="monospace">latency_ms</text><text x="990" y="555" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <line x1="880" y1="488" x2="1110" y2="488" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="506" x2="1110" y2="506" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="524" x2="1110" y2="524" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="542" x2="1110" y2="542" stroke="#ddd" stroke-width="0.5"/>
+</g>
+
+<!-- ── ACCURACY_CONFIDENCE_CURVE  (x=880, y=610, w=230, h=118) ── -->
+<g id="tbl-acc">
+  <rect x="880" y="610" width="230" height="118" rx="5" fill="white" stroke="#222" stroke-width="1.5"/>
+  <rect x="880" y="610" width="230" height="28" rx="5" fill="#222"/>
+  <rect x="880" y="624" width="230" height="14" fill="#222"/>
+  <text x="995" y="628" text-anchor="middle" fill="white" font-size="10" font-weight="700" font-family="monospace">accuracy_confidence_curve</text>
+  <rect x="881" y="638" width="228" height="18" fill="#fffde7"/>
+  <text x="888" y="651" fill="#111" font-size="11" font-family="monospace">id</text><text x="1095" y="651" fill="#7a5f00" font-size="9" font-weight="700">PK</text>
+  <rect x="881" y="656" width="228" height="18" fill="#e8f4fd"/>
+  <text x="888" y="669" fill="#111" font-size="11" font-family="monospace">run_id</text><text x="990" y="669" fill="#555" font-size="10" font-family="monospace">INT FK</text><text x="1095" y="669" fill="#1a4a7a" font-size="9" font-weight="700">FK</text>
+  <rect x="881" y="674" width="228" height="18" fill="#f5f5f5"/>
+  <text x="888" y="687" fill="#111" font-size="11" font-family="monospace">threshold</text><text x="990" y="687" fill="#555" font-size="10" font-family="monospace">FLOAT</text>
+  <rect x="881" y="692" width="228" height="18" fill="white"/>
+  <text x="888" y="705" fill="#111" font-size="11" font-family="monospace">accuracy</text><text x="990" y="705" fill="#555" font-size="10" font-family="monospace">FLOAT</text>
+  <rect x="881" y="710" width="228" height="18" fill="#f5f5f5"/>
+  <text x="888" y="723" fill="#111" font-size="11" font-family="monospace">fpr</text><text x="990" y="723" fill="#555" font-size="10" font-family="monospace">FLOAT</text>
+  <line x1="880" y1="638" x2="1110" y2="638" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="656" x2="1110" y2="656" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="674" x2="1110" y2="674" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="692" x2="1110" y2="692" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="880" y1="710" x2="1110" y2="710" stroke="#ddd" stroke-width="0.5"/>
+</g>
+
+<!-- ── NETWORK_NODES  (x=160, y=310, w=230, h=330) ── -->
+<g id="tbl-nodes">
+  <rect x="160" y="310" width="230" height="330" rx="5" fill="white" stroke="#222" stroke-width="1.5"/>
+  <rect x="160" y="310" width="230" height="28" rx="5" fill="#222"/>
+  <rect x="160" y="324" width="230" height="14" fill="#222"/>
+  <text x="275" y="328" text-anchor="middle" fill="white" font-size="13" font-weight="700" font-family="monospace">network_nodes</text>
+  <rect x="161" y="338" width="228" height="18" fill="#fffde7"/>
+  <text x="168" y="351" fill="#111" font-size="11" font-family="monospace">id</text><text x="375" y="351" fill="#7a5f00" font-size="9" font-weight="700">PK</text>
+  <rect x="161" y="356" width="228" height="18" fill="#e8f4fd"/>
+  <text x="168" y="369" fill="#111" font-size="11" font-family="monospace">run_id</text><text x="270" y="369" fill="#555" font-size="10" font-family="monospace">INT FK</text><text x="375" y="369" fill="#1a4a7a" font-size="9" font-weight="700">FK</text>
+  <rect x="161" y="374" width="228" height="18" fill="#f5f5f5"/>
+  <text x="168" y="387" fill="#111" font-size="11" font-family="monospace">node_id</text><text x="280" y="387" fill="#555" font-size="10" font-family="monospace">VARCHAR(20)</text>
+  <rect x="161" y="392" width="228" height="18" fill="white"/>
+  <text x="168" y="405" fill="#111" font-size="11" font-family="monospace">label</text><text x="280" y="405" fill="#555" font-size="10" font-family="monospace">VARCHAR(100)</text>
+  <rect x="161" y="410" width="228" height="18" fill="#f5f5f5"/>
+  <text x="168" y="423" fill="#111" font-size="11" font-family="monospace">role</text><text x="280" y="423" fill="#555" font-size="10" font-family="monospace">ENUM</text>
+  <rect x="161" y="428" width="228" height="18" fill="white"/>
+  <text x="168" y="441" fill="#111" font-size="11" font-family="monospace">pos_x / pos_y</text><text x="295" y="441" fill="#555" font-size="10" font-family="monospace">FLOAT</text>
+  <rect x="161" y="446" width="228" height="18" fill="#f5f5f5"/>
+  <text x="168" y="459" fill="#111" font-size="11" font-family="monospace">battery / drain</text><text x="295" y="459" fill="#555" font-size="10" font-family="monospace">INT/FLOAT</text>
+  <rect x="161" y="464" width="228" height="18" fill="white"/>
+  <text x="168" y="477" fill="#111" font-size="11" font-family="monospace">traffic</text><text x="280" y="477" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <rect x="161" y="482" width="228" height="18" fill="#f5f5f5"/>
+  <text x="168" y="495" fill="#111" font-size="11" font-family="monospace">health</text><text x="280" y="495" fill="#555" font-size="10" font-family="monospace">ENUM</text>
+  <rect x="161" y="500" width="228" height="18" fill="white"/>
+  <text x="168" y="513" fill="#111" font-size="11" font-family="monospace">packets_in / out</text><text x="305" y="513" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <rect x="161" y="518" width="228" height="18" fill="#f5f5f5"/>
+  <text x="168" y="531" fill="#111" font-size="11" font-family="monospace">retries / collisions</text><text x="315" y="531" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <rect x="161" y="536" width="228" height="18" fill="white"/>
+  <text x="168" y="549" fill="#111" font-size="11" font-family="monospace">ai_det</text><text x="280" y="549" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <rect x="161" y="554" width="228" height="18" fill="#f5f5f5"/>
+  <text x="168" y="567" fill="#111" font-size="11" font-family="monospace">parent_node_id</text><text x="295" y="567" fill="#555" font-size="10" font-family="monospace">VARCHAR(20)</text>
+  <rect x="161" y="572" width="228" height="18" fill="white"/>
+  <text x="168" y="585" fill="#111" font-size="11" font-family="monospace">power_radio/proc/mic</text>
+  <text x="340" y="585" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <line x1="160" y1="338" x2="390" y2="338" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="356" x2="390" y2="356" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="374" x2="390" y2="374" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="392" x2="390" y2="392" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="410" x2="390" y2="410" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="428" x2="390" y2="428" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="446" x2="390" y2="446" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="464" x2="390" y2="464" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="482" x2="390" y2="482" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="500" x2="390" y2="500" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="518" x2="390" y2="518" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="536" x2="390" y2="536" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="554" x2="390" y2="554" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="572" x2="390" y2="572" stroke="#ddd" stroke-width="0.5"/>
+</g>
+<!-- network_nodes: left x=160, right x=390, top y=310, bottom y=640, mid-right (390,475), mid-left (160,475) -->
+
+<!-- ── NODE_EVENTS  (x=20, y=310, w=130, h=100) ── -->
+<g id="tbl-node_events">
+  <rect x="20" y="310" width="130" height="100" rx="5" fill="white" stroke="#222" stroke-width="1.5"/>
+  <rect x="20" y="310" width="130" height="28" rx="5" fill="#222"/>
+  <rect x="20" y="324" width="130" height="14" fill="#222"/>
+  <text x="85" y="328" text-anchor="middle" fill="white" font-size="11" font-weight="700" font-family="monospace">node_events</text>
+  <rect x="21" y="338" width="128" height="18" fill="#fffde7"/>
+  <text x="28" y="351" fill="#111" font-size="10" font-family="monospace">id</text><text x="135" y="351" fill="#7a5f00" font-size="9" font-weight="700">PK</text>
+  <rect x="21" y="356" width="128" height="18" fill="#e8f4fd"/>
+  <text x="28" y="369" fill="#111" font-size="10" font-family="monospace">run_id</text><text x="135" y="369" fill="#1a4a7a" font-size="9" font-weight="700">FK</text>
+  <rect x="21" y="374" width="128" height="18" fill="#f5f5f5"/>
+  <text x="28" y="387" fill="#111" font-size="10" font-family="monospace">node_id</text>
+  <rect x="21" y="392" width="128" height="18" fill="white"/>
+  <text x="28" y="405" fill="#111" font-size="10" font-family="monospace">event_text</text>
+  <line x1="20" y1="338" x2="150" y2="338" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="20" y1="356" x2="150" y2="356" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="20" y1="374" x2="150" y2="374" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="20" y1="392" x2="150" y2="392" stroke="#ddd" stroke-width="0.5"/>
+</g>
+<!-- node_events: right x=150, mid-right (150,360) -->
+
+<!-- ── NODE_CHILDREN  (x=20, y=440, w=130, h=100) ── -->
+<g id="tbl-node_children">
+  <rect x="20" y="440" width="130" height="100" rx="5" fill="white" stroke="#222" stroke-width="1.5"/>
+  <rect x="20" y="440" width="130" height="28" rx="5" fill="#222"/>
+  <rect x="20" y="454" width="130" height="14" fill="#222"/>
+  <text x="85" y="458" text-anchor="middle" fill="white" font-size="11" font-weight="700" font-family="monospace">node_children</text>
+  <rect x="21" y="468" width="128" height="18" fill="#fffde7"/>
+  <text x="28" y="481" fill="#111" font-size="10" font-family="monospace">id</text><text x="135" y="481" fill="#7a5f00" font-size="9" font-weight="700">PK</text>
+  <rect x="21" y="486" width="128" height="18" fill="#e8f4fd"/>
+  <text x="28" y="499" fill="#111" font-size="10" font-family="monospace">run_id</text><text x="135" y="499" fill="#1a4a7a" font-size="9" font-weight="700">FK</text>
+  <rect x="21" y="504" width="128" height="18" fill="#f5f5f5"/>
+  <text x="28" y="517" fill="#111" font-size="10" font-family="monospace">parent_node_id</text>
+  <rect x="21" y="522" width="128" height="18" fill="white"/>
+  <text x="28" y="535" fill="#111" font-size="10" font-family="monospace">child_node_id</text>
+  <line x1="20" y1="468" x2="150" y2="468" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="20" y1="486" x2="150" y2="486" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="20" y1="504" x2="150" y2="504" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="20" y1="522" x2="150" y2="522" stroke="#ddd" stroke-width="0.5"/>
+</g>
+<!-- node_children: right x=150, mid-right (150,490) -->
+
+<!-- ── NETWORK_EDGES  (x=160, y=680, w=230, h=190) ── -->
+<g id="tbl-network_edges">
+  <rect x="160" y="680" width="230" height="190" rx="5" fill="white" stroke="#222" stroke-width="1.5"/>
+  <rect x="160" y="680" width="230" height="28" rx="5" fill="#222"/>
+  <rect x="160" y="694" width="230" height="14" fill="#222"/>
+  <text x="275" y="698" text-anchor="middle" fill="white" font-size="13" font-weight="700" font-family="monospace">network_edges</text>
+  <rect x="161" y="708" width="228" height="18" fill="#fffde7"/>
+  <text x="168" y="721" fill="#111" font-size="11" font-family="monospace">id</text><text x="375" y="721" fill="#7a5f00" font-size="9" font-weight="700">PK</text>
+  <rect x="161" y="726" width="228" height="18" fill="#e8f4fd"/>
+  <text x="168" y="739" fill="#111" font-size="11" font-family="monospace">run_id</text><text x="270" y="739" fill="#555" font-size="10" font-family="monospace">INT FK</text><text x="375" y="739" fill="#1a4a7a" font-size="9" font-weight="700">FK</text>
+  <rect x="161" y="744" width="228" height="18" fill="#f5f5f5"/>
+  <text x="168" y="757" fill="#111" font-size="11" font-family="monospace">from_node / to_node</text><text x="330" y="757" fill="#555" font-size="10" font-family="monospace">VARCHAR</text>
+  <rect x="161" y="762" width="228" height="18" fill="white"/>
+  <text x="168" y="775" fill="#111" font-size="11" font-family="monospace">congestion</text><text x="270" y="775" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <rect x="161" y="780" width="228" height="18" fill="#f5f5f5"/>
+  <text x="168" y="793" fill="#111" font-size="11" font-family="monospace">packet_loss</text><text x="270" y="793" fill="#555" font-size="10" font-family="monospace">FLOAT</text>
+  <rect x="161" y="798" width="228" height="18" fill="white"/>
+  <text x="168" y="811" fill="#111" font-size="11" font-family="monospace">retries / collisions</text><text x="315" y="811" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <rect x="161" y="816" width="228" height="18" fill="#f5f5f5"/>
+  <text x="168" y="829" fill="#111" font-size="11" font-family="monospace">avg_delay / latency</text><text x="315" y="829" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <rect x="161" y="834" width="228" height="18" fill="white"/>
+  <text x="168" y="847" fill="#111" font-size="11" font-family="monospace">reroutes</text><text x="270" y="847" fill="#555" font-size="10" font-family="monospace">INT</text>
+  <line x1="160" y1="708" x2="390" y2="708" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="726" x2="390" y2="726" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="744" x2="390" y2="744" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="762" x2="390" y2="762" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="780" x2="390" y2="780" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="798" x2="390" y2="798" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="816" x2="390" y2="816" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="160" y1="834" x2="390" y2="834" stroke="#ddd" stroke-width="0.5"/>
+</g>
+
+<!-- ── REROUTE_EVENTS  (x=460, y=760, w=200, h=100) ── -->
+<g id="tbl-reroute_events">
+  <rect x="460" y="760" width="200" height="100" rx="5" fill="white" stroke="#222" stroke-width="1.5"/>
+  <rect x="460" y="760" width="200" height="28" rx="5" fill="#222"/>
+  <rect x="460" y="774" width="200" height="14" fill="#222"/>
+  <text x="560" y="778" text-anchor="middle" fill="white" font-size="12" font-weight="700" font-family="monospace">reroute_events</text>
+  <rect x="461" y="788" width="198" height="18" fill="#fffde7"/>
+  <text x="468" y="801" fill="#111" font-size="11" font-family="monospace">id</text><text x="645" y="801" fill="#7a5f00" font-size="9" font-weight="700">PK</text>
+  <rect x="461" y="806" width="198" height="18" fill="#e8f4fd"/>
+  <text x="468" y="819" fill="#111" font-size="11" font-family="monospace">run_id</text><text x="560" y="819" fill="#555" font-size="10" font-family="monospace">INT FK</text><text x="645" y="819" fill="#1a4a7a" font-size="9" font-weight="700">FK</text>
+  <rect x="461" y="824" width="198" height="18" fill="#f5f5f5"/>
+  <text x="468" y="837" fill="#111" font-size="11" font-family="monospace">from_node / to_node</text>
+  <line x1="460" y1="788" x2="660" y2="788" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="806" x2="660" y2="806" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="824" x2="660" y2="824" stroke="#ddd" stroke-width="0.5"/>
+</g>
+
+<!-- ── AI_EVENTS  (x=460, y=900, w=200, h=154) ── -->
+<g id="tbl-ai_events">
+  <rect x="460" y="900" width="200" height="154" rx="5" fill="white" stroke="#222" stroke-width="1.5"/>
+  <rect x="460" y="900" width="200" height="28" rx="5" fill="#222"/>
+  <rect x="460" y="914" width="200" height="14" fill="#222"/>
+  <text x="560" y="918" text-anchor="middle" fill="white" font-size="13" font-weight="700" font-family="monospace">ai_events</text>
+  <rect x="461" y="928" width="198" height="18" fill="#fffde7"/>
+  <text x="468" y="941" fill="#111" font-size="11" font-family="monospace">id</text><text x="645" y="941" fill="#7a5f00" font-size="9" font-weight="700">PK</text>
+  <rect x="461" y="946" width="198" height="18" fill="#e8f4fd"/>
+  <text x="468" y="959" fill="#111" font-size="11" font-family="monospace">run_id</text><text x="560" y="959" fill="#555" font-size="10" font-family="monospace">INT FK</text><text x="645" y="959" fill="#1a4a7a" font-size="9" font-weight="700">FK</text>
+  <rect x="461" y="964" width="198" height="18" fill="#f5f5f5"/>
+  <text x="468" y="977" fill="#111" font-size="11" font-family="monospace">timestamp_ms</text><text x="580" y="977" fill="#555" font-size="10" font-family="monospace">BIGINT</text>
+  <rect x="461" y="982" width="198" height="18" fill="white"/>
+  <text x="468" y="995" fill="#111" font-size="11" font-family="monospace">node_id</text><text x="560" y="995" fill="#555" font-size="10" font-family="monospace">VARCHAR(20)</text>
+  <rect x="461" y="1000" width="198" height="18" fill="#f5f5f5"/>
+  <text x="468" y="1013" fill="#111" font-size="11" font-family="monospace">event_type</text><text x="560" y="1013" fill="#555" font-size="10" font-family="monospace">VARCHAR(50)</text>
+  <rect x="461" y="1018" width="198" height="18" fill="white"/>
+  <text x="468" y="1031" fill="#111" font-size="11" font-family="monospace">confidence</text><text x="560" y="1031" fill="#555" font-size="10" font-family="monospace">FLOAT</text>
+  <rect x="461" y="1036" width="198" height="18" fill="#f5f5f5"/>
+  <text x="468" y="1049" fill="#111" font-size="11" font-family="monospace">latency_ms / energy_mj</text>
+  <line x1="460" y1="928" x2="660" y2="928" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="946" x2="660" y2="946" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="964" x2="660" y2="964" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="982" x2="660" y2="982" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="1000" x2="660" y2="1000" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="1018" x2="660" y2="1018" stroke="#ddd" stroke-width="0.5"/>
+  <line x1="460" y1="1036" x2="660" y2="1036" stroke="#ddd" stroke-width="0.5"/>
+</g>
+
+<!-- =====================================================
+     ARROWS  — all start/end on outer table borders only
+     runs:          left=460  right=680  top=30   bot=238   mid-right=(680,134) mid-left=(460,134) mid-bot=(570,238)
+     run_metrics:   left=880                                mid-left=(880,143)
+     det_by_type:   left=880  top=310                      mid-left=(880,360)
+     lat_by_rank:   left=880  top=460                      mid-left=(880,510)
+     acc_curve:     left=880  top=610                      mid-left=(880,669)
+     network_nodes: right=390 left=160  top=310  bot=640   mid-right=(390,475) mid-left=(160,475)
+     network_edges: right=390           top=680            mid-right=(390,775)
+     reroute:                           top=760            mid-top=(560,760)
+     ai_events:                         top=900            mid-top=(560,900)
+     node_events:   right=150                              mid-right=(150,360)
+     node_children: right=150                              mid-right=(150,490)
+     ===================================================== -->
+
+<!-- runs → run_metrics  (right edge → left edge) -->
+<line x1="680" y1="134" x2="880" y2="134" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="762" y="126" fill="#333" font-size="10" font-weight="600">1:1</text>
+
+<!-- runs → detections_by_type  (right → route down → left) -->
+<polyline points="680,134  820,134  820,360  880,360" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="824" y="260" fill="#333" font-size="10" font-weight="600">1:N</text>
+
+<!-- runs → latency_by_rank  (right → route down → left) -->
+<polyline points="680,134  840,134  840,510  880,510" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="844" y="400" fill="#333" font-size="10" font-weight="600">1:N</text>
+
+<!-- runs → accuracy_confidence_curve  (right → route down → left) -->
+<polyline points="680,134  856,134  856,669  880,669" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="860" y="530" fill="#333" font-size="10" font-weight="600">1:N</text>
+
+<!-- runs → network_nodes  (left edge → right edge, routed above) -->
+<polyline points="460,134  430,134  430,475  390,475" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="395" y="300" fill="#333" font-size="10" font-weight="600">1:N</text>
+
+<!-- runs → network_edges  (bottom → down → right edge of network_edges) -->
+<polyline points="570,238  570,660  390,660  390,775" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="395" y="660" fill="#333" font-size="10" font-weight="600">1:N</text>
+
+<!-- runs → reroute_events  (bottom → straight down to top) -->
+<polyline points="540,238  540,760" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="544" y="520" fill="#333" font-size="10" font-weight="600">1:N</text>
+
+<!-- runs → ai_events  (bottom → down to top) -->
+<polyline points="600,238  600,680  620,680  620,900" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#arr)"/>
+<text x="624" y="600" fill="#333" font-size="10" font-weight="600">1:N</text>
+
+<!-- network_nodes → node_events  (left edge → right edge) -->
+<line x1="160" y1="360" x2="150" y2="360" stroke="#aaa" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-gray)"/>
+
+<!-- network_nodes → node_children  (left edge → right edge) -->
+<line x1="160" y1="490" x2="150" y2="490" stroke="#aaa" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-gray)"/>
+
+
+
+</svg>
+</body>
+</html>
