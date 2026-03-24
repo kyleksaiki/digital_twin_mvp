@@ -20,7 +20,7 @@ export default function Sidebar({onNavigate, active}){
       <div className="sb-divider"></div>
       <div className="sb-label">Run Tools</div>
       <div className={`sb-item ${active==='runsel'?'active':''}`} id="navRunSel" onClick={()=>onNavigate('runsel')}><span className="sb-icon">☰</span> Run Selector</div>
-      <div className="sb-item disabled"><span className="sb-icon">＋</span> Create New Run</div>
+      <div className={`sb-item ${active==='create'?'active':''}`} id="navCreate" onClick={()=>onNavigate('create')}><span className="sb-icon">＋</span> Create New Run</div>
 
       <div className={`sb-ctx ${active==='netmap'?'visible':''}`} id="ctxNetMap">
         <div className="sb-divider"></div>

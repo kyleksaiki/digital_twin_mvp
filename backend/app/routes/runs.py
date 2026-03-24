@@ -1,11 +1,71 @@
 """Run-related API endpoints — DB-backed version."""
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from datetime import datetime, date
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional
 from app.models import Run, RunDetail
 from app.database import get_db
-from app.db_models import RunRow, RunMetricsRow
+from app.db_models import (
+    RunRow, RunMetricsRow, NetworkNodeRow, NetworkEdgeRow, 
+    RerouteEventRow, DetectionByTypeRow, LatencyByRankRow, 
+    AccuracyConfidenceCurveRow, NodeEventRow, NodeChildRow, AIEventRow
+)
+import random
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
+
+
+class CreateRunRequest(BaseModel):
+    """Request body for creating a new run."""
+    name: str
+    scenario: str
+    model: str
+    hw: str
+    duration: str
+    status: Optional[str] = "pass"
+    nodes: List[Dict[str, Any]]
+    edges: List[Dict[str, Any]]
+    mediaFiles: Optional[Dict[str, str]] = {}
+    shamanConfig: Optional[Dict[str, Any]] = {}
+
+
+class CreateRunResponse(BaseModel):
+    """Response for run creation."""
+    id: int
+    name: str
+    created_at: str
+
+
+def _generate_mock_node_data(node_role: str) -> Dict[str, Any]:
+    """Generate realistic mock data for a node."""
+    return {
+        "battery": random.randint(20, 100),
+        "drain": round(random.uniform(0.1, 2.5), 2),
+        "traffic": random.randint(10, 95),
+        "health": random.choice(["good", "warning", "critical"]),
+        "packets_in": random.randint(100, 5000),
+        "packets_out": random.randint(100, 5000),
+        "retries": random.randint(0, 50),
+        "collisions": random.randint(0, 10),
+        "ai_det": random.randint(0, 20),
+        "power_radio": random.randint(100, 500),
+        "power_processor": random.randint(50, 300),
+        "power_mic": random.randint(10, 100),
+    }
+
+
+def _generate_mock_edge_data() -> Dict[str, Any]:
+    """Generate realistic mock data for an edge."""
+    return {
+        "congestion": random.randint(10, 95),
+        "packet_loss": round(random.uniform(0, 5), 2),
+        "retries": random.randint(0, 20),
+        "collisions": random.randint(0, 5),
+        "avg_delay": random.randint(10, 500),
+        "reroutes": random.randint(0, 3),
+        "latency": random.randint(5, 200),
+    }
 
 
 def _row_to_run(row: RunRow) -> Run:
@@ -101,3 +161,119 @@ def get_dashboard(run_id: int, db: Session = Depends(get_db)):
             for pt in sorted(row.acc_curve, key=lambda x: x.threshold)
         ],
     }
+
+
+@router.post("/create", response_model=CreateRunResponse)
+def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
+    """
+    Create a new simulation run with topology and mock metrics.
+    
+    Accepts:
+    - name: Run name
+    - scenario: Simulation scenario 
+    - model: AI model used
+    - hw: Hardware spec
+    - duration: Expected run duration
+    - nodes: List of node definitions {id, label, role, x, y}
+    - edges: List of edge definitions {from, to}
+    - mediaFiles: Dict mapping node IDs to file paths
+    - shamanConfig: Global Shaman configuration
+    
+    Returns:
+    - id: Database run ID
+    - name: Run name
+    - created_at: ISO timestamp
+    """
+    
+    # Create run record
+    run = RunRow(
+        name=req.name,
+        date=date.today(),
+        scenario=req.scenario,
+        model=req.model,
+        hw=req.hw,
+        duration=req.duration,
+        status=req.status or "pass",
+    )
+    db.add(run)
+    db.flush()  # Get the run ID
+    
+    # Create mock metrics
+    avg_latency = random.randint(10, 200)
+    avg_congestion = random.randint(20, 80)
+    
+    metrics = RunMetricsRow(
+        run_id=run.id,
+        accuracy=round(random.uniform(0.75, 0.98), 4),
+        fpr=round(random.uniform(0.01, 0.1), 4),
+        latency_ms=avg_latency,
+        detection_count=random.randint(5, 50),
+        battery_health=round(random.uniform(60, 95), 2),
+        congestion=avg_congestion,
+        throughput=round(random.uniform(50, 500), 2),
+        conf_threshold=round(random.uniform(0.5, 0.9), 2),
+    )
+    db.add(metrics)
+    
+    # Create network nodes with mock data
+    for node in req.nodes:
+        mock_data = _generate_mock_node_data(node["role"])
+        db_node = NetworkNodeRow(
+            run_id=run.id,
+            node_id=node["id"],
+            label=node["label"],
+            role=node["role"],
+            pos_x=node.get("x", 0.5),
+            pos_y=node.get("y", 0.5),
+            **mock_data,
+        )
+        db.add(db_node)
+    
+    # Create network edges with mock data
+    for edge in req.edges:
+        mock_data = _generate_mock_edge_data()
+        db_edge = NetworkEdgeRow(
+            run_id=run.id,
+            from_node=edge["from"],
+            to_node=edge["to"],
+            **mock_data,
+        )
+        db.add(db_edge)
+    
+    # Create sample detection events
+    event_types = ["intrusion", "anomaly", "threshold_breach", "device_offline"]
+    for i in range(min(5, len(req.nodes))):
+        for _ in range(random.randint(1, 3)):
+            det = DetectionByTypeRow(
+                run_id=run.id,
+                event_type=random.choice(event_types),
+                count=random.randint(1, 10),
+            )
+            db.add(det)
+    
+    # Create sample latency points
+    for rank in range(1, min(6, len(req.nodes) + 1)):
+        lat_row = LatencyByRankRow(
+            run_id=run.id,
+            rank=rank,
+            latency_ms=random.randint(5, avg_latency * 2),
+        )
+        db.add(lat_row)
+    
+    # Create accuracy-confidence curve
+    for threshold in [0.5, 0.6, 0.7, 0.8, 0.9]:
+        acc_row = AccuracyConfidenceCurveRow(
+            run_id=run.id,
+            threshold=threshold,
+            accuracy=round(0.85 + (threshold / 10), 4),
+            fpr=round(0.1 - (threshold / 20), 4),
+        )
+        db.add(acc_row)
+    
+    db.commit()
+    
+    return CreateRunResponse(
+        id=run.id,
+        name=run.name,
+        created_at=datetime.now().isoformat(),
+    )
