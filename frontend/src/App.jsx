@@ -5,6 +5,7 @@ import RunSelector from './components/RunSelector'
 import Overview from './components/Overview'
 import NetMap from './components/NetMap'
 import AISummary from './components/AISummary'
+import CreateRun from './components/CreateRun'
 import DetailPanel from './components/DetailPanel'
 
 // Styles
@@ -17,6 +18,7 @@ import './styles/Overview.css'
 import './styles/NetMap.css'
 import './styles/DetailPanel.css'
 import './styles/AISummary.css'
+import './styles/CreateRun.css'
 
 export default function App(){
   const [page, setPage] = useState('runsel')
@@ -46,6 +48,10 @@ export default function App(){
 
       <div className={`page ${page==='aisummary'?'active':''}`} id="pageAISummary">
         <AISummary />
+      </div>
+
+      <div className={`page ${page==='create'?'active':''}`} id="pageCreateRun">
+        <CreateRun />
       </div>
 
       <div className="detail-panel" id="detailPanel"><DetailPanel/></div>
