@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 
 /**
- * ShamanConfigPanel - Global Shaman configuration for all nodes
+ * Shaman I or Shaman II configuration
  * 
  * Props:
- *   config: object with power model, component settings, solar config
+ *   config: object with component power model settings
  *   onChange: (config) => void - called when config changes
  */
 export default function ShamanConfigPanel({ config, onChange }) {
@@ -38,13 +38,15 @@ export default function ShamanConfigPanel({ config, onChange }) {
     });
   }
 
+
+  /*
   function handleMaxRangeChange(e) {
     onChange({
       ...config,
       maxRange: parseFloat(e.target.value) || 0,
     });
   }
-
+  */
   function handleComponentChange(key) {
     onChange({
       ...config,
@@ -55,7 +57,7 @@ export default function ShamanConfigPanel({ config, onChange }) {
     });
   }
 
-  function handleSolarPowerChange(e) {
+  /* function handleSolarPowerChange(e) {
     onChange({
       ...config,
       solar: {
@@ -73,7 +75,7 @@ export default function ShamanConfigPanel({ config, onChange }) {
         efficiency: parseFloat(e.target.value) || 0,
       },
     });
-  }
+  } */
 
   const powerWattage = config.powerModel === "current" ? (config.current * config.voltage) / 1000 : config.power;
 
@@ -81,7 +83,7 @@ export default function ShamanConfigPanel({ config, onChange }) {
     <div className={`shaman-config-panel ${isExpanded ? "expanded" : ""}`}>
       <div className="scp-header" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="scp-title">Shaman Config</div>
-        <div className="scp-toggle">{isExpanded ? "−" : "+"}</div>
+        <div className="scp-toggle">{isExpanded ? "-" : "+"}</div>
       </div>
 
       {isExpanded && (
@@ -156,7 +158,9 @@ export default function ShamanConfigPanel({ config, onChange }) {
             </div>
           </div>
 
-          {/* Connection Range */}
+
+          
+          {/* Connection Range
           <div className="scp-section">
             <div className="scp-section-title">Network</div>
             <div className="scp-input-group">
@@ -170,6 +174,8 @@ export default function ShamanConfigPanel({ config, onChange }) {
               />
             </div>
           </div>
+          */}
+
 
           {/* Components & States */}
           <div className="scp-section">
@@ -241,8 +247,8 @@ export default function ShamanConfigPanel({ config, onChange }) {
               </label>
             </div>
           </div>
-
-          {/* Solar Panel */}
+          
+          {/* Solar Panel 
           <div className="scp-section">
             <div className="scp-section-title">Solar</div>
             <div className="scp-input-group">
@@ -268,6 +274,7 @@ export default function ShamanConfigPanel({ config, onChange }) {
               />
             </div>
           </div>
+          */}
 
           {/* Action Buttons */}
           <div className="scp-actions">
