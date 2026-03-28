@@ -12,8 +12,12 @@ import { createRun } from "../api";
  * - Pan, zoom, and navigation controls
  * - Shaman configuration panel
  * - Connection validation rules
+ * 
+ * Props:
+ *   onNavigate: (page: string) => void - called to navigate to other pages
+ *   onRunCreated: () => void - called after successful run creation
  */
-export default function CreateRun() {
+export default function CreateRun({ onNavigate, onRunCreated }) {
   const canvasRef = useRef(null);
   const tipRef = useRef(null);
   const draggedButtonRef = useRef(null);
@@ -355,7 +359,8 @@ export default function CreateRun() {
 
   function addEdge(from, to) {
     if (!canConnect(from, to)) return;
-    if (edges.some((e) => (e.from === from.id && e.to === to.id) || (e.from === to.id && e.to === from.id))) return;
+    // Only prevent exact same direction, allow multiple edges and bidirectional
+    if (edges.some((e) => e.from === from.id && e.to === to.id)) return;
 
     setEdges([...edges, { from: from.id, to: to.id }]);
   }
@@ -607,6 +612,10 @@ export default function CreateRun() {
     setNodes([]);
     setEdges([]);
     setMediaFiles({});
+    // Navigate to run selector if run was created
+    if (onRunCreated) {
+      onRunCreated();
+    }
   }
 
   function zoomIn() {

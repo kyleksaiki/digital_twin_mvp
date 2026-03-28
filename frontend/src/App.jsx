@@ -35,7 +35,7 @@ export default function App(){
           <div className="dot"></div>
           <span id="loadedRunText">{loadedRun? `Loaded: ${loadedRun.name} (${loadedRun.hw}, ${loadedRun.duration})` : ''}</span>
         </div>
-        <RunSelector onOpen={async (r)=>{ setLoadedRun(r); setPage('overview') }} />
+        <RunSelector page={page} onOpen={async (r)=>{ setLoadedRun(r); setPage('overview') }} />
       </div>
 
       <div className={`page ${page==='overview'?'active':''}`} id="pageOverview">
@@ -51,7 +51,7 @@ export default function App(){
       </div>
 
       <div className={`page ${page==='create'?'active':''}`} id="pageCreateRun">
-        <CreateRun />
+        <CreateRun onNavigate={setPage} onRunCreated={() => { setLoadedRun(null); setPage('runsel'); }} />
       </div>
 
       <div className="detail-panel" id="detailPanel"><DetailPanel/></div>
