@@ -24,10 +24,11 @@ import { useApi } from '../hooks/useApi'
  *   }
  * 
  * Props:
+ *   page: string - current page (used to trigger refetch when navigating back)
  *   onOpen: (run) => void - called when user opens a run
  */
-export default function RunSelector({onOpen}){
-  const { data, loading } = useApi(()=>fetchRuns(), [])
+export default function RunSelector({page, onOpen}){
+  const { data, loading } = useApi(()=>fetchRuns(), [page])
   const [selectedIdx, setSelectedIdx] = useState(null)
 
   if(loading) return <div style={{padding:24}}>Loading runs…</div>
