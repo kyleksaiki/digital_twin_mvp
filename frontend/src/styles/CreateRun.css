@@ -1,21 +1,8 @@
 /* CreateRun component styles */
 
 #pageCreateRun {
-    background: radial-gradient(ellipse at 30% 40%, rgba(0, 229, 255, 0.03) 0%, transparent 60%),
-                radial-gradient(ellipse at 70% 60%, rgba(167, 139, 250, 0.02) 0%, transparent 50%),
-                var(--bg-deep);
     position: relative;
-}
-
-#pageCreateRun::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image: linear-gradient(rgba(30, 45, 72, 0.15) 1px, transparent 1px),
-                      linear-gradient(90deg, rgba(30, 45, 72, 0.15) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-    z-index: 1;
+    overflow: hidden;
 }
 
 #createRunCanvas {
@@ -638,6 +625,21 @@
     background: var(--bg-tertiary);
     color: var(--text-primary);
     border-color: var(--border-active);
+}
+
+/* Component Power Model Table */
+
+table {
+  border-collapse: collapse;
+}
+
+th {
+    font-size:10px;
+    font-weight:inherit;
+}
+
+th input{
+    width:100%;
 }
 
 /* Loading Dialog Special Styling */
