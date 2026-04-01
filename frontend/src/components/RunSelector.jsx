@@ -62,11 +62,6 @@ export default function RunSelector({page, onOpen}){
           <option>BirdNET v2.4</option>
           <option>BirdNET v2.3</option>
         </select>
-        <select className="ai-filter">
-          <option>Hardware: All</option>
-          <option>ESP32</option>
-          <option>Radxa Zero</option>
-        </select>
       </div>
 
       <div className="table-container">
@@ -78,7 +73,8 @@ export default function RunSelector({page, onOpen}){
               <th>Date</th>
               <th>Scenario</th>
               <th>AI Model</th>
-              <th>Hardware</th>
+              <th>Shaman I Processor</th>
+              <th>Shaman II Processor</th>
               <th>Duration</th>
               <th>Status</th>
             </tr>
@@ -93,7 +89,8 @@ export default function RunSelector({page, onOpen}){
                 <td style={{fontFamily:'var(--font-mono)',fontSize:11}}>{r.date}</td>
                 <td>{r.scenario}</td>
                 <td><span className="badge badge-model">{r.model}</span></td>
-                <td><span className="badge badge-hw">{r.hw}</span></td>
+                <td><span className="badge badge-hw">{r.shamanIProcessor || r.hw || "—"}</span></td>
+                <td><span className="badge badge-hw">{r.shamanIIProcessor || "—"}</span></td>
                 <td style={{fontFamily:'var(--font-mono)',fontSize:11}}>{r.duration}</td>
                 <td><span className={`status-dot ${r.status}`}></span>{r.status.charAt(0).toUpperCase()+r.status.slice(1)}</td>
               </tr>
