@@ -54,9 +54,13 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   const [shamanIIProcessor, setShamanIIProcessor] = useState("Radxa Zero");
   const [mediaFiles, setMediaFiles] = useState({});
   const [workflow, setWorkflow] = useState("design"); // "design" | "configure" | "loading" | "confirm"
-  const [configStep, setConfigStep] = useState(1); // 1 | 2 | 3
+  const [configStep, setConfigStep] = useState(1); // 1 | 2 | 3 | 4
   const [isLoading, setIsLoading] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
+  const [runName, setRunName] = useState(null);
+  const [runAIModel, setRunAIModel] = useState(null);
+  const [runScenario, setRunScenario] = useState(null);
+  const [runDuration, setRunDuration] = useState(null);
 
   const stateRef = useRef({
     nodes: [],
@@ -635,13 +639,13 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
 
     // Create run data
     const runData = {
-      name: `Run-${new Date().toISOString().split("T")[0]}-${Date.now() % 10000}`,
-      scenario: "Digital Twin Simulation",
-      model: "Auto-generated",
+      name: runName || `Run-${new Date().toISOString().split("T")[0]}-${Date.now() % 10000}`,
+      scenario: runScenario || "Digital Twin Simulation",
+      model: runAIModel || "Auto-generated",
       hw: `${shamanIProcessor} / ${shamanIIProcessor}`,
       shamanIProcessor,
       shamanIIProcessor,
-      duration: "24h",
+      duration: runDuration || "24h",
       status: "pass",
       nodes: nodes.map((n) => ({
         id: n.id,
@@ -889,7 +893,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                   ? "Power Configuration: Shaman I"
                   : configStep === 2
                     ? "Power Configuration: Shaman II"
-                    : "Connect Media Files"}
+                    : configStep === 3 ? 
+                    "Connect Media Files" : 
+                    "Configure Details"}
               </div>
               <button
                 className="modal-close"
@@ -1287,6 +1293,57 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                   ))}
                 </div>
               )}
+
+              {/* Step 4: Details */}
+              {configStep === 4 && (
+                <div className="modal-section">
+                  <div className="modal-label">
+                    Configure Run Details
+                  </div>
+                  <div className="scp-input-group">
+                    <label className="scp-label">Run Name:</label>
+                    <input
+                      className="scp-input"
+                      value={runName}
+                      onChange={(e) =>
+                        setRunName(e.target.value)
+                      }
+                    />
+                  </div>
+                  <div className="scp-input-group">
+                    <label className="scp-label">Scenario:</label>
+                    <input
+                      className="scp-input"
+                      value={runScenario}
+                      onChange={(e) =>
+                        setRunScenario(e.target.value)
+                      }
+                    />
+                  </div>
+                  
+                  <div className="scp-input-group">
+                    <label className="scp-label">AI Model:</label>
+                    <input
+                      className="scp-input"
+                      value={runAIModel}
+                      onChange={(e) =>
+                        setRunAIModel(e.target.value)
+                      }
+                    />
+                  </div>
+
+                  <div className="scp-input-group">
+                    <label className="scp-label">Duration:</label>
+                    <input
+                      className="scp-input"
+                      value={runDuration}
+                      onChange={(e) =>
+                        setRunDuration(e.target.value)
+                      }
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             <div className="modal-footer">
               <button
@@ -1300,19 +1357,19 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                   }
                 }}
               >
-                {configStep === 1 ? "Cancel" : "Back"}
+                Back
               </button>
               <button
                 className="modal-btn-confirm"
                 onClick={() => {
-                  if (configStep < 3) {
+                  if (configStep < 4) {
                     setConfigStep(configStep + 1);
                   } else {
                     runSimulation();
                   }
                 }}
               >
-                {configStep < 3 ? "Next" : "Run Simulation"}
+                {configStep < 4 ? "Next" : "Run Simulation"}
               </button>
             </div>
           </div>
