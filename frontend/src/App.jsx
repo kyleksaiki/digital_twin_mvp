@@ -43,7 +43,7 @@ export default function App(){
       </div>
 
       <div className={`page ${page==='netmap'?'active':''}`} id="pageNetMap">
-        <NetMap onPanelOpen={(open)=>setPanelOpen(open)} />
+        <NetMap run={loadedRun} onPanelOpen={(open)=>setPanelOpen(open)} />
       </div>
 
       <div className={`page ${page==='aisummary'?'active':''}`} id="pageAISummary">

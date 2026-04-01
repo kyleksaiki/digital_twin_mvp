@@ -4,7 +4,11 @@ import { fetchNetmap } from "../api";
 /**
  * NetMap - Interactive network topology visualization on canvas
  * 
- * Fetches: GET /api/netmap
+ * Props:
+ *   run: Run object with id, name, etc. (from loadedRun in App)
+ *   onPanelOpen: (open) => void - called when detail panel opens/closes
+ * 
+ * Fetches: GET /api/runs/{run_id}/netmap or GET /api/netmap
  * 
  * Expected response:
  *   {
@@ -57,9 +61,11 @@ import { fetchNetmap } from "../api";
  * - Hover tooltips
  * - Click to show detail panel
  */
-export default function NetMap() {
+export default function NetMap({ run, onPanelOpen }) {
   const canvasRef = useRef(null);
   const tipRef = useRef(null);
+  const [loading, setLoading] = React.useState(true);
+  const [hasData, setHasData] = React.useState(false);
   const stateRef = useRef({
     nodes: [],
     edges: [],
@@ -82,16 +88,27 @@ export default function NetMap() {
 
   useEffect(() => {
     let mounted = true;
-    fetchNetmap()
+    setLoading(true);
+    fetchNetmap(run?.id)
       .then((d) => {
         if (!mounted) return;
         stateRef.current.nodes = d.nodes || [];
         stateRef.current.edges = d.edges || [];
         stateRef.current.reroutes = d.reroutes || [];
-        startLoop();
+        setHasData((d.nodes || []).length > 0);
+        setLoading(false);
+        if ((d.nodes || []).length > 0) {
+          startLoop();
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (mounted) {
+          setHasData(false);
+          setLoading(false);
+        }
+      });
     const canvas = canvasRef.current;
+    if (!canvas) return;
     const tip = document.createElement("div");
     tip.className = "hover-tip";
     tip.style.display = "none";
@@ -114,7 +131,7 @@ export default function NetMap() {
       if (tip && tip.parentElement) tip.parentElement.removeChild(tip);
     };
     // eslint-disable-next-line
-  }, []);
+  }, [run]);
 
   function resizeCanvas() {
     const area = canvasRef.current.parentElement;
@@ -551,87 +568,113 @@ export default function NetMap() {
       style={{ position: "relative", width: "100%", height: "100%" }}
       id="pageNetMap"
     >
+      {!loading && !hasData && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            textAlign: "center",
+            zIndex: 10,
+          }}
+        >
+          <div style={{ fontSize: 24, fontWeight: 600, marginBottom: 8, color: "rgba(228,234,244,0.6)" }}>
+            No Network Map Found
+          </div>
+          <div style={{ fontSize: 14, color: "rgba(228,234,244,0.4)" }}>
+            {run ? "This run does not have network topology data" : "Select a run to view its network map"}
+          </div>
+        </div>
+      )}
+
       <canvas
         id="netCanvas"
         ref={canvasRef}
-        style={{ width: "100%", height: "100%", cursor: "grab" }}
+        style={{ width: "100%", height: "100%", cursor: "grab", display: hasData ? "block" : "none" }}
       ></canvas>
 
       {/* Network Overview (top-left) */}
-      <div className="map-ov top-left">
-        <div className="ov-title">Network Overview</div>
-        {(() => {
-          const overview = getNetworkOverview();
-          return (
-            <>
-              <div className="ov-row">
-                <span className="ov-label">Congestion Score
-                  <span className="help-icon" style={{position:'relative',top:'-1px'}}>?
-                    <span className="help-tip">Aggregate network congestion metric (0-100). Calculation will be refined with Mech/AI input.</span>
+      {hasData && (
+        <div className="map-ov top-left">
+          <div className="ov-title">Network Overview</div>
+          {(() => {
+            const overview = getNetworkOverview();
+            return (
+              <>
+                <div className="ov-row">
+                  <span className="ov-label">Congestion Score
+                    <span className="help-icon" style={{position:'relative',top:'-1px'}}>?
+                      <span className="help-tip">Aggregate network congestion metric (0-100). Calculation will be refined with Mech/AI input.</span>
+                    </span>
                   </span>
-                </span>
-                <span className={`ov-val ${getColorClass(overview.congestionScore, 'congestion')}`}>{overview.congestionScore}/100</span>
-              </div>
-              <div className="ov-row">
-                <span className="ov-label">Avg Latency</span>
-                <span className={`ov-val ${getColorClass(overview.avgLatency, 'latency')}`}>{overview.avgLatency}ms</span>
-              </div>
-              <div className="ov-row">
-                <span className="ov-label">Packet Loss</span>
-                <span className={`ov-val ${getColorClass(overview.packetLoss, 'packetloss')}`}>{overview.packetLoss}%</span>
-              </div>
-              <div className="ov-row">
-                <span className="ov-label">Active Nodes</span>
-                <span className="ov-val good">{overview.activeNodes} / {overview.activeNodes}</span>
-              </div>
-              <div className="ov-row">
-                <span className="ov-label">Reroute Events</span>
-                <span className={`ov-val ${overview.rerouteCount > 5 ? 'warn' : 'good'}`}>{overview.rerouteCount}</span>
-              </div>
-            </>
-          );
-        })()}
-      </div>
+                  <span className={`ov-val ${getColorClass(overview.congestionScore, 'congestion')}`}>{overview.congestionScore}/100</span>
+                </div>
+                <div className="ov-row">
+                  <span className="ov-label">Avg Latency</span>
+                  <span className={`ov-val ${getColorClass(overview.avgLatency, 'latency')}`}>{overview.avgLatency}ms</span>
+                </div>
+                <div className="ov-row">
+                  <span className="ov-label">Packet Loss</span>
+                  <span className={`ov-val ${getColorClass(overview.packetLoss, 'packetloss')}`}>{overview.packetLoss}%</span>
+                </div>
+                <div className="ov-row">
+                  <span className="ov-label">Active Nodes</span>
+                  <span className="ov-val good">{overview.activeNodes} / {overview.activeNodes}</span>
+                </div>
+                <div className="ov-row">
+                  <span className="ov-label">Reroute Events</span>
+                  <span className={`ov-val ${overview.rerouteCount > 5 ? 'warn' : 'good'}`}>{overview.rerouteCount}</span>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Zoom controls (top-right) */}
-      <div className="map-zoom">
-        <button className="zoom-btn" onClick={zoomIn} title="Zoom In">+</button>
-        <button className="zoom-btn" onClick={zoomOut} title="Zoom Out">−</button>
-        <button className="zoom-btn recenter" onClick={recenter} title="Recenter">⌖</button>
-      </div>
+      {hasData && (
+        <div className="map-zoom">
+          <button className="zoom-btn" onClick={zoomIn} title="Zoom In">+</button>
+          <button className="zoom-btn" onClick={zoomOut} title="Zoom Out">−</button>
+          <button className="zoom-btn recenter" onClick={recenter} title="Recenter">⌖</button>
+        </div>
+      )}
 
       {/* Legend (bottom-left) */}
-      <div className="map-ov bottom-left">
-        <div className="ov-title">Legend</div>
-        <div className="legend-row">
-          <div className="legend-swatch" style={{background:'#00e5ff',borderColor:'#00e5ff',width:'14px',height:'14px'}}></div>
-          <span> Command Center</span>
+      {hasData && (
+        <div className="map-ov bottom-left">
+          <div className="ov-title">Legend</div>
+          <div className="legend-row">
+            <div className="legend-swatch" style={{background:'#00e5ff',borderColor:'#00e5ff',width:'14px',height:'14px'}}></div>
+            <span> Command Center</span>
+          </div>
+          <div className="legend-row">
+            <svg width="14" height="14" viewBox="0 0 14 14" style={{flexShrink:0}}>
+              <rect x="1" y="1" width="12" height="12" rx="3" fill="rgba(167,139,250,0.2)" stroke="#a78bfa" strokeWidth="1.5"></rect>
+            </svg>
+            <span> Shaman II (Relay)</span>
+          </div>
+          <div className="legend-row">
+            <svg width="14" height="14" viewBox="0 0 14 14" style={{flexShrink:0}}>
+              <polygon points="7,1 13,13 1,13" fill="rgba(0,230,138,0.2)" stroke="#00e68a" strokeWidth="1.5"></polygon>
+            </svg>
+            <span> Shaman I (Sensor)</span>
+          </div>
+          <div className="legend-row">
+            <div className="legend-line" style={{background:'var(--green)'}}></div>
+            <span>Low congestion</span>
+          </div>
+          <div className="legend-row">
+            <div className="legend-line" style={{background:'var(--amber)'}}></div>
+            <span>Medium</span>
+          </div>
+          <div className="legend-row">
+            <div className="legend-line" style={{background:'var(--red)'}}></div>
+            <span>High congestion</span>
+          </div>
         </div>
-        <div className="legend-row">
-          <svg width="14" height="14" viewBox="0 0 14 14" style={{flexShrink:0}}>
-            <rect x="1" y="1" width="12" height="12" rx="3" fill="rgba(167,139,250,0.2)" stroke="#a78bfa" strokeWidth="1.5"></rect>
-          </svg>
-          <span> Shaman II (Relay)</span>
-        </div>
-        <div className="legend-row">
-          <svg width="14" height="14" viewBox="0 0 14 14" style={{flexShrink:0}}>
-            <polygon points="7,1 13,13 1,13" fill="rgba(0,230,138,0.2)" stroke="#00e68a" strokeWidth="1.5"></polygon>
-          </svg>
-          <span> Shaman I (Sensor)</span>
-        </div>
-        <div className="legend-row">
-          <div className="legend-line" style={{background:'var(--green)'}}></div>
-          <span>Low congestion</span>
-        </div>
-        <div className="legend-row">
-          <div className="legend-line" style={{background:'var(--amber)'}}></div>
-          <span>Medium</span>
-        </div>
-        <div className="legend-row">
-          <div className="legend-line" style={{background:'var(--red)'}}></div>
-          <span>High congestion</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

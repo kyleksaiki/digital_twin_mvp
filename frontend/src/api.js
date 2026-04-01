@@ -18,7 +18,10 @@ async function postJson(path, body){
 
 export function fetchRuns(){ return getJson('/runs') }
 export function fetchRun(id){ return getJson(`/runs/${id}`) }
-export function fetchNetmap(){ return getJson('/netmap') }
+export function fetchNetmap(runId){ 
+  if(runId) return getJson(`/runs/${runId}/netmap`)
+  return getJson('/netmap')
+}
 export function fetchAiSummary(){ return getJson('/ai/summary') }
 export function createRun(runData){ return postJson('/runs/create', runData) }
 export async function postChat(q){
