@@ -298,3 +298,60 @@ def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
         name=run.name,
         created_at=datetime.now().isoformat(),
     )
+
+
+@router.get("/{run_id}/netmap")
+def get_netmap(run_id: int, db: Session = Depends(get_db)):
+    """
+    Get network topology (nodes and edges) for a specific run.
+    
+    Returns:
+    - nodes: List of network nodes with their properties
+    - edges: List of network edges with their properties
+    - reroutes: List of reroute events (from, to pairs)
+    """
+    row = db.query(RunRow).filter(RunRow.id == run_id).first()
+    if not row:
+        return {"nodes": [], "edges": [], "reroutes": []}
+
+    nodes = []
+    for n in row.nodes:
+        nodes.append({
+            "id": n.node_id,
+            "label": n.label,
+            "role": n.role,
+            "x": n.pos_x,
+            "y": n.pos_y,
+            "battery": n.battery,
+            "drain": n.drain,
+            "traffic": n.traffic,
+            "health": n.health,
+            "packetsIn": n.packets_in,
+            "packetsOut": n.packets_out,
+            "retries": n.retries,
+            "collisions": n.collisions,
+            "aiDet": n.ai_det,
+            "powerBreakdown": {
+                "radio": n.power_radio,
+                "processor": n.power_processor,
+                "mic": n.power_mic,
+            },
+        })
+
+    edges = []
+    for e in row.edges:
+        edges.append({
+            "from": e.from_node,
+            "to": e.to_node,
+            "congestion": e.congestion,
+            "packetLoss": e.packet_loss,
+            "retries": e.retries,
+            "collisions": e.collisions,
+            "avgDelay": e.avg_delay,
+            "reroutes": e.reroutes,
+            "latency": e.latency,
+        })
+
+    reroutes = [{"from": r.from_node, "to": r.to_node} for r in row.reroutes]
+
+    return {"nodes": nodes, "edges": edges, "reroutes": reroutes}
