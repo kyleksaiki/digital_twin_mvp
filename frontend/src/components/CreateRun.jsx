@@ -195,7 +195,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     // Draw Osa Peninsula map background
     if (mapImageRef.current) {
       ctx.save();
-      ctx.globalAlpha = 0.8;
+      ctx.globalAlpha = 1;
       
       // Map dimensions in normalized coordinates (-0.5 to 0.5)
       const mapSize = 2;
@@ -215,7 +215,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     // Draw map-like background pattern that moves with pan/zoom
     // Subtle topographic grid
     ctx.save();
-    ctx.globalAlpha = 0.08;
+    ctx.globalAlpha = 0.4;
     ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
     ctx.lineWidth = 1;
     const gridSize = 60 * s.zoom;
@@ -255,8 +255,8 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
       ctx.strokeStyle = isValid
-        ? "rgba(167, 139, 250, 0.6)"
-        : "rgba(255, 77, 106, 0.6)";
+        ? "rgba(167, 139, 250, 1)"
+        : "rgba(255, 77, 106, 1)";
       ctx.lineWidth = 2 * s.zoom;
       ctx.lineCap = "round";
       ctx.stroke();
@@ -282,7 +282,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(mouseX, mouseY);
-      ctx.strokeStyle = "rgba(167, 139, 250, 0.3)";
+      ctx.strokeStyle = "rgba(167, 139, 250, 1)";
       ctx.lineWidth = 1.5 * s.zoom;
       ctx.setLineDash([4, 4]);
       ctx.stroke();
@@ -305,7 +305,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         ctx.beginPath();
         ctx.arc(x, y, sz + 10 * s.zoom, 0, Math.PI * 2);
         ctx.fillStyle = isConnecting
-          ? "rgba(0, 230, 138, 0.25)"
+          ? "rgba(0, 230, 138, 0.9)"
           : color + "22";
         ctx.fill();
       }
@@ -358,7 +358,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       }
 
       ctx.font = `500 ${(n.role === "command" ? 10 : 9) * s.zoom}px "JetBrains Mono"`;
-      ctx.fillStyle = "rgba(228,234,244,0.85)";
+      ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
       ctx.textAlign = "center";
       ctx.fillText(n.id, x, y + sz + 12 * s.zoom);
     });
