@@ -639,6 +639,8 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       scenario: "Digital Twin Simulation",
       model: "Auto-generated",
       hw: `${shamanIProcessor} / ${shamanIIProcessor}`,
+      shamanIProcessor,
+      shamanIIProcessor,
       duration: "24h",
       status: "pass",
       nodes: nodes.map((n) => ({

@@ -22,6 +22,8 @@ class CreateRunRequest(BaseModel):
     scenario: str
     model: str
     hw: str
+    shamanIProcessor: Optional[str] = None
+    shamanIIProcessor: Optional[str] = None
     duration: str
     status: Optional[str] = "pass"
     nodes: List[Dict[str, Any]]
@@ -69,6 +71,14 @@ def _generate_mock_edge_data() -> Dict[str, Any]:
 
 
 def _row_to_run(row: RunRow) -> Run:
+    # Parse hw field to extract separate processors
+    shaman_i = None
+    shaman_ii = None
+    if " / " in row.hw:
+        parts = row.hw.split(" / ")
+        shaman_i = parts[0].strip() if len(parts) > 0 else None
+        shaman_ii = parts[1].strip() if len(parts) > 1 else None
+    
     return Run(
         id=row.id,
         name=row.name,
@@ -76,6 +86,8 @@ def _row_to_run(row: RunRow) -> Run:
         scenario=row.scenario,
         model=row.model,
         hw=row.hw,
+        shamanIProcessor=shaman_i,
+        shamanIIProcessor=shaman_ii,
         duration=row.duration,
         status=row.status,
     )
@@ -113,9 +125,18 @@ def get_run_detail(run_id: int, db: Session = Depends(get_db)) -> RunDetail:
             "conf_threshold":  m.conf_threshold,
         }
 
+    # Parse hw field to extract separate processors
+    shaman_i = None
+    shaman_ii = None
+    if " / " in row.hw:
+        parts = row.hw.split(" / ")
+        shaman_i = parts[0].strip() if len(parts) > 0 else None
+        shaman_ii = parts[1].strip() if len(parts) > 1 else None
+
     return RunDetail(
         id=row.id, name=row.name, model=row.model,
         hw=row.hw, duration=row.duration, status=row.status,
+        shamanIProcessor=shaman_i, shamanIIProcessor=shaman_ii,
         metrics=metrics,
     )
 

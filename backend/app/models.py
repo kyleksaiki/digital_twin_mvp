@@ -11,6 +11,8 @@ class Run(BaseModel):
     scenario: str
     model: str
     hw: str
+    shamanIProcessor: Optional[str] = None
+    shamanIIProcessor: Optional[str] = None
     duration: str
     status: str  # 'pass', 'warning', 'fail'
 
@@ -21,6 +23,8 @@ class RunDetail(BaseModel):
     name: str
     model: str
     hw: str
+    shamanIProcessor: Optional[str] = None
+    shamanIIProcessor: Optional[str] = None
     duration: str
     status: str
     metrics: Dict[str, Any]
