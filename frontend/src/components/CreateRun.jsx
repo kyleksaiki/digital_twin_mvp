@@ -40,6 +40,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   const canvasRef = useRef(null);
   const tipRef = useRef(null);
   const draggedButtonRef = useRef(null);
+  const mapImageRef = useRef(null);
 
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
@@ -85,6 +86,18 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     stateRef.current.nodes = nodes;
     stateRef.current.edges = edges;
   }, [nodes, edges]);
+
+  // Load Osa Peninsula map image
+  useEffect(() => {
+    const img = new Image();
+    img.src = "/Osa_Penisula_Map.png";
+    img.onload = () => {
+      mapImageRef.current = img;
+    };
+    img.onerror = () => {
+      console.error("Failed to load Osa Peninsula map image");
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -178,6 +191,26 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     const w = canvas.clientWidth,
       h = canvas.clientHeight;
     ctx.clearRect(0, 0, w, h);
+
+    // Draw Osa Peninsula map background
+    if (mapImageRef.current) {
+      ctx.save();
+      ctx.globalAlpha = 0.8;
+      
+      // Map dimensions in normalized coordinates (-0.5 to 0.5)
+      const mapSize = 2;
+      const mapX = -mapSize / 2;
+      const mapY = -mapSize / 2;
+      
+      // Convert to screen coordinates with pan/zoom
+      const screenX = mapX * w * s.zoom + w / 2 + s.panX;
+      const screenY = mapY * h * s.zoom + h / 2 + s.panY;
+      const screenW = mapSize * w * s.zoom;
+      const screenH = mapSize * h * s.zoom;
+      
+      ctx.drawImage(mapImageRef.current, screenX, screenY, screenW, screenH);
+      ctx.restore();
+    }
 
     // Draw map-like background pattern that moves with pan/zoom
     // Subtle topographic grid
