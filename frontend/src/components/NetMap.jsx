@@ -64,6 +64,7 @@ import { fetchNetmap } from "../api";
 export default function NetMap({ run, onPanelOpen }) {
   const canvasRef = useRef(null);
   const tipRef = useRef(null);
+  const mapImageRef = useRef(null);
   const [loading, setLoading] = React.useState(true);
   const [hasData, setHasData] = React.useState(false);
   const stateRef = useRef({
@@ -133,6 +134,18 @@ export default function NetMap({ run, onPanelOpen }) {
     // eslint-disable-next-line
   }, [run]);
 
+  // Load Osa Peninsula map image
+  useEffect(() => {
+    const img = new Image();
+    img.src = "/Osa_Penisula_Map.png";
+    img.onload = () => {
+      mapImageRef.current = img;
+    };
+    img.onerror = () => {
+      console.error("Failed to load Osa Peninsula map image");
+    };
+  }, []);
+
   function resizeCanvas() {
     const area = canvasRef.current.parentElement;
     const canvas = canvasRef.current;
@@ -200,6 +213,54 @@ export default function NetMap({ run, onPanelOpen }) {
     const w = canvas.clientWidth,
       h = canvas.clientHeight;
     ctx.clearRect(0, 0, w, h);
+
+    // Draw Osa Peninsula map background
+    if (mapImageRef.current) {
+      ctx.save();
+      ctx.globalAlpha = 1;
+      
+      // Map dimensions in normalized coordinates (-0.5 to 0.5)
+      const mapSize = 2;
+      const mapX = -mapSize / 2;
+      const mapY = -mapSize / 2;
+      
+      // Convert to screen coordinates with pan/zoom
+      const screenX = mapX * w * s.zoom + w / 2 + s.panX;
+      const screenY = mapY * h * s.zoom + h / 2 + s.panY;
+      const screenW = mapSize * w * s.zoom;
+      const screenH = mapSize * h * s.zoom;
+      
+      ctx.drawImage(mapImageRef.current, screenX, screenY, screenW, screenH);
+      ctx.restore();
+    }
+
+    // Draw map-like background pattern that moves with pan/zoom
+    // Subtle topographic grid
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
+    ctx.lineWidth = 1;
+    const gridSize = 60 * s.zoom;
+    const baseX = s.panX % gridSize;
+    const baseY = s.panY % gridSize;
+
+    // Vertical lines
+    for (let x = baseX - gridSize; x < w + gridSize; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+
+    // Horizontal lines
+    for (let y = baseY - gridSize; y < h + gridSize; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+
     // heat
     s.nodes.forEach((n) => {
       if (n.traffic > 50) {
@@ -365,8 +426,8 @@ export default function NetMap({ run, onPanelOpen }) {
         ctx.fillStyle = color;
         ctx.fill();
       }
-      ctx.font = `${n.role === "command" ? 600 : 500} ${(n.role === "command" ? 10 : 9) * s.zoom}px "JetBrains Mono"`;
-      ctx.fillStyle = "rgba(228,234,244,0.85)";
+      ctx.font = `500 ${(n.role === "command" ? 10 : 9) * s.zoom}px "JetBrains Mono"`;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
       ctx.textAlign = "center";
       ctx.fillText(n.id, x, y + sz + 12 * s.zoom);
       if (n.role !== "command") {
