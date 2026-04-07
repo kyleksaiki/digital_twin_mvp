@@ -15,7 +15,7 @@ export default function Sidebar({onNavigate, active}){
       <div className="sb-label">Run Analysis</div>
       <div className={`sb-item ${active==='overview'?'active':''}`} id="navOverview" onClick={()=>onNavigate('overview')}><span className="sb-icon">◫</span> Overview Dashboard</div>
       <div className={`sb-item ${active==='netmap'?'active':''}`} id="navNetMap" onClick={()=>onNavigate('netmap')}><span className="sb-icon">⬡</span> Network Map</div>
-      <div className={`sb-item ${active==='aisummary'?'active':''}`} id="navAISummary" onClick={()=>onNavigate('aisummary')}><span className="sb-icon">◈</span> AI Summary</div>
+      <div className={`sb-item ${active==='aisummary'?'active':''}`} id="navAISummary" onClick={()=>onNavigate('aisummary')}><span className="sb-icon">◈</span> AI Assistant</div>
 
       <div className="sb-divider"></div>
       <div className="sb-label">Run Tools</div>
