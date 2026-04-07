@@ -15,7 +15,7 @@
 .create-toolbar {
     position: absolute;
     z-index: 10;
-    background: rgba(11, 17, 32, 0.92);
+    background: var(--bg-deep);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 10px;
@@ -76,7 +76,7 @@
     right: 14px;
     bottom: 14px;
     z-index: 10;
-    background: rgba(11, 17, 32, 0.92);
+    background: var(--bg-deep);
     border: 1px solid var(--border);
     border-radius: 8px;
     backdrop-filter: blur(8px);
@@ -332,7 +332,7 @@
 .zoom-btn {
     width: 32px;
     height: 32px;
-    background: rgba(11, 17, 32, 0.92);
+    background: var(--bg-deep);
     border: 1px solid var(--border);
     border-radius: 4px;
     color: var(--text-primary);
@@ -360,7 +360,7 @@
 .map-ov {
     position: absolute;
     z-index: 10;
-    background: rgba(11, 17, 32, 0.92);
+    background: var(--bg-deep);
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 12px 14px;

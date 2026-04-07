@@ -261,7 +261,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     // Subtle topographic grid
     ctx.save();
     ctx.globalAlpha = 0.4;
-    ctx.strokeStyle = "rgba(0, 229, 255, 0.5)";
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
     ctx.lineWidth = 1;
     const gridSize = 60 * s.zoom;
     const baseX = s.panX % gridSize;

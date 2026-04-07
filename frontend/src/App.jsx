@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Topbar from './components/Topbar'
 import Sidebar from './components/Sidebar'
 import RunSelector from './components/RunSelector'
@@ -24,10 +24,32 @@ export default function App(){
   const [page, setPage] = useState('runsel')
   const [loadedRun, setLoadedRun] = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
+  
+  // Theme state with system preference detection
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('theme-preference')
+    if (saved) return saved === 'dark'
+    // Check system preference
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  })
+
+  // Apply theme to document root
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.remove('light-theme')
+    } else {
+      document.documentElement.classList.add('light-theme')
+    }
+    localStorage.setItem('theme-preference', isDarkMode ? 'dark' : 'light')
+  }, [isDarkMode])
+
+  function toggleTheme() {
+    setIsDarkMode(!isDarkMode)
+  }
  
   return (
     <div className={`app ${panelOpen ? 'panel-open':''}`} id="app">
-      <Topbar title={page} />
+      <Topbar title={page} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} />
       <Sidebar onNavigate={setPage} active={page} />
 
       <div className={`page ${page==='runsel'?'active':''}`} id="pageRunSelector">

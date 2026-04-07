@@ -1,6 +1,8 @@
 /* Global theme variables and base styles */
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+
+/* Dark Theme (default) */
 :root {
     --bg-deep: #060a11;
     --bg-primary: #0b1120;
@@ -18,6 +20,31 @@
     --amber: #ffbe2e;
     --red: #ff4d6a;
     --purple: #a78bfa;
+    --blue: #3b82f6;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'DM Sans', sans-serif;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+}
+
+/* Light Theme */
+:root.light-theme {
+    --bg-deep: #f8f9fa;
+    --bg-primary: #ffffff;
+    --bg-secondary: #f0f2f5;
+    --bg-tertiary: #e6ecf1;
+    --bg-card: #f8f9fa;
+    --bg-hover: #e6ecf1;
+    --border: #d4dce5;
+    --border-active: #a0b0c4;
+    --text-primary: #1a2332;
+    --text-secondary: #536471;
+    --text-muted: #8a99ac;
+    --cyan: #1da1f2;
+    --green: #17bf63;
+    --amber: #ffb81c;
+    --red: #e0245e;
+    --purple: #9b5de5;
     --blue: #3b82f6;
     --font-mono: 'JetBrains Mono', monospace;
     --font-sans: 'DM Sans', sans-serif;
