@@ -173,18 +173,39 @@ export default function NetMap({ run, onPanelOpen }) {
   }
 
   function nx(n) {
-    const area = canvasRef.current.parentElement;
-    const w = area.clientWidth;
+    const canvas = canvasRef.current;
+    if (!canvas) return 0;
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
     return (
       (n.x * w - w / 2) * stateRef.current.zoom + w / 2 + stateRef.current.panX
     );
   }
   function ny(n) {
-    const area = canvasRef.current.parentElement;
-    const h = area.clientHeight;
+    const canvas = canvasRef.current;
+    if (!canvas) return 0;
+    const rect = canvas.getBoundingClientRect();
+    const h = rect.height;
     return (
       (n.y * h - h / 2) * stateRef.current.zoom + h / 2 + stateRef.current.panY
     );
+  }
+
+  function clampPan() {
+    const s = stateRef.current;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+
+    const minPanX = w * (0.5 - s.zoom);
+    const maxPanX = w * (s.zoom - 0.5);
+    const minPanY = h * (0.5 - s.zoom);
+    const maxPanY = h * (s.zoom - 0.5);
+
+    s.panX = Math.max(minPanX, Math.min(maxPanX, s.panX));
+    s.panY = Math.max(minPanY, Math.min(maxPanY, s.panY));
   }
 
   function congColor(c) {
@@ -326,8 +347,8 @@ export default function NetMap({ run, onPanelOpen }) {
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
-      ctx.strokeStyle = rgb(c, hl ? 0.9 : 0.5);
-      ctx.lineWidth = hl ? wgt + 2 : wgt;
+      ctx.strokeStyle = rgb(c, hl ? 0.95 : 0.7);
+      ctx.lineWidth = Math.max(1.5, hl ? wgt + 2 : Math.max(wgt, 2));
       ctx.lineCap = "round";
       ctx.stroke();
       const pc = Math.ceil(e.congestion / 25);
@@ -378,20 +399,20 @@ export default function NetMap({ run, onPanelOpen }) {
       if (hl) {
         ctx.beginPath();
         ctx.arc(x, y, sz + 10 * s.zoom, 0, Math.PI * 2);
-        ctx.fillStyle = color + "22";
+        ctx.fillStyle = "rgba(0,0,0,0.06)";
         ctx.fill();
       }
       ctx.lineWidth = hl ? 2.5 : 1.8;
       if (n.role === "command") {
         ctx.beginPath();
         ctx.arc(x, y, sz, 0, Math.PI * 2);
-        ctx.fillStyle = color + "25";
+        ctx.fillStyle = color;
         ctx.fill();
-        ctx.strokeStyle = color;
+        ctx.strokeStyle = "rgba(0,0,0,0.18)";
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(x, y, sz * 0.35, 0, Math.PI * 2);
-        ctx.fillStyle = color;
+        ctx.fillStyle = "#ffffff";
         ctx.fill();
       } else if (n.role === "relay") {
         const hs = sz;
@@ -402,13 +423,13 @@ export default function NetMap({ run, onPanelOpen }) {
         ctx.arcTo(x + hs, y + hs, x + hs - 4, y + hs, 4);
         ctx.arcTo(x - hs, y + hs, x - hs, y + hs - 4, 4);
         ctx.closePath();
-        ctx.fillStyle = color + "20";
+        ctx.fillStyle = color;
         ctx.fill();
-        ctx.strokeStyle = color;
+        ctx.strokeStyle = "rgba(0,0,0,0.18)";
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(x, y, 3 * s.zoom, 0, Math.PI * 2);
-        ctx.fillStyle = color;
+        ctx.fillStyle = "#ffffff";
         ctx.fill();
       } else {
         const h = sz * 1.15;
@@ -417,13 +438,13 @@ export default function NetMap({ run, onPanelOpen }) {
         ctx.lineTo(x + sz, y + h * 0.6);
         ctx.lineTo(x - sz, y + h * 0.6);
         ctx.closePath();
-        ctx.fillStyle = color + "20";
+        ctx.fillStyle = color;
         ctx.fill();
-        ctx.strokeStyle = color;
+        ctx.strokeStyle = "rgba(0,0,0,0.18)";
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(x, y + h * 0.05, 2.5 * s.zoom, 0, Math.PI * 2);
-        ctx.fillStyle = color;
+        ctx.fillStyle = "#ffffff";
         ctx.fill();
       }
       ctx.font = `500 ${(n.role === "command" ? 10 : 9) * s.zoom}px "JetBrains Mono"`;
@@ -491,6 +512,7 @@ export default function NetMap({ run, onPanelOpen }) {
     if (s.isDragging) {
       s.panX = s.panStartX + (e.clientX - s.dragStartX);
       s.panY = s.panStartY + (e.clientY - s.dragStartY);
+      clampPan();
       return;
     }
     // hover detection
@@ -532,6 +554,7 @@ export default function NetMap({ run, onPanelOpen }) {
     e.preventDefault();
     const s = stateRef.current;
     s.zoom = Math.max(0.5, Math.min(3, s.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+    clampPan();
   }
   function onClick() {
     const s = stateRef.current;
@@ -543,10 +566,14 @@ export default function NetMap({ run, onPanelOpen }) {
   }
 
   function zoomIn() {
-    stateRef.current.zoom = Math.max(0.5, Math.min(3, stateRef.current.zoom * 1.2));
+    const s = stateRef.current;
+    s.zoom = Math.max(0.5, Math.min(3, s.zoom * 1.2));
+    clampPan();
   }
   function zoomOut() {
-    stateRef.current.zoom = Math.max(0.5, Math.min(3, stateRef.current.zoom * 0.8));
+    const s = stateRef.current;
+    s.zoom = Math.max(0.5, Math.min(3, s.zoom * 0.8));
+    clampPan();
   }
   function recenter() {
     stateRef.current.zoom = 1;
@@ -712,13 +739,13 @@ export default function NetMap({ run, onPanelOpen }) {
           </div>
           <div className="legend-row">
             <svg width="14" height="14" viewBox="0 0 14 14" style={{flexShrink:0}}>
-              <rect x="1" y="1" width="12" height="12" rx="3" fill="rgba(167,139,250,0.2)" stroke="#a78bfa" strokeWidth="1.5"></rect>
+              <rect x="1" y="1" width="12" height="12" rx="3" fill="#a78bfa" stroke="#a78bfa" strokeWidth="1.5"></rect>
             </svg>
             <span> Shaman II (Relay)</span>
           </div>
           <div className="legend-row">
             <svg width="14" height="14" viewBox="0 0 14 14" style={{flexShrink:0}}>
-              <polygon points="7,1 13,13 1,13" fill="rgba(0,230,138,0.2)" stroke="#00e68a" strokeWidth="1.5"></polygon>
+              <polygon points="7,1 13,13 1,13" fill="#00e68a" stroke="#00e68a" strokeWidth="1.5"></polygon>
             </svg>
             <span> Shaman I (Sensor)</span>
           </div>
