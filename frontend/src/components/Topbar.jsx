@@ -14,7 +14,7 @@ export default function Topbar({title}){
       <div className="topbar-sep" />
       <div className="topbar-title" id="topbarTitle">{titles[title]||''}</div>
       <div className="topbar-spacer" />
-      <button className="topbar-btn">Export Report</button>
+      {title === 'overview' && <button className="topbar-btn">Export Report</button>}
     </div>
   )
 }
