@@ -1,6 +1,9 @@
 """AI assistant endpoints."""
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Query
 from app.models import ChatQuery, ChatResponse
+from app.database import get_db
+from app.db_models import RunRow
+from sqlalchemy.orm import Session
 import os
 import re
 from openai import OpenAI, APIError
@@ -47,11 +50,90 @@ def evaluate_math(expression):
 
 
 @router.get("/summary")
-def get_summary():
+def get_summary(run_id: int = Query(None), db: Session = Depends(get_db)):
     """Get AI-generated summary of the loaded run."""
+    # Fetch run details if run_id provided
+    run_details = None
+    default_fallback = "Unable to generate summary. Please check the AI service."
+    
+    if run_id:
+        run_row = db.query(RunRow).filter(RunRow.id == run_id).first()
+        if run_row:
+            run_details = {
+                "name": run_row.name,
+                "duration": run_row.duration,
+                "scenario": run_row.scenario,
+                "model": run_row.model,
+                "status": run_row.status,
+                "date": str(run_row.date),
+            }
+            metrics = run_row.metrics
+            if metrics:
+                run_details["accuracy"] = metrics.accuracy
+                run_details["fpr"] = metrics.fpr
+                run_details["detections"] = metrics.detection_count
+                run_details["latency_ms"] = metrics.latency_ms
+                run_details["battery_health"] = metrics.battery_health
+            default_fallback = f"Run {run_row.name} completed in {run_row.duration}. Overall status: {run_row.status}."
+    
+    # If no run details, return basic message
+    if not run_details:
+        return {
+            "title": "Run Summary",
+            "content": default_fallback,
+        }
+    
+    # Try to generate AI summary if OpenAI is available
+    if client:
+        try:
+            prompt = f"""Provide a concise 2-3 sentence summary of this forest monitoring simulation run:
+            
+Run: {run_details['name']}
+Duration: {run_details['duration']}
+Scenario: {run_details['scenario']}
+Model: {run_details['model']}
+Status: {run_details['status']}
+"""
+            
+            if run_details.get("accuracy") is not None:
+                prompt += f"Detection Accuracy: {run_details['accuracy']}%\n"
+            if run_details.get("detections") is not None:
+                prompt += f"Total Detections: {run_details['detections']}\n"
+            if run_details.get("fpr") is not None:
+                prompt += f"False Positive Rate: {run_details['fpr']}%\n"
+            if run_details.get("latency_ms") is not None:
+                prompt += f"Avg Latency: {run_details['latency_ms']}ms\n"
+                
+            prompt += "\nProvide a brief analysis of the run performance and any notable insights."
+            
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an AI assistant for a digital twin forest monitoring system. Provide concise, professional summaries of simulation runs.",
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
+                max_tokens=200,
+                temperature=0.7,
+            )
+            summary = response.choices[0].message.content.strip()
+            return {
+                "title": "Run Summary",
+                "content": summary,
+            }
+        except APIError as e:
+            # Fall back to basic summary with run details
+            pass
+    
+    # Fallback: return structured summary with run data
     return {
         "title": "Run Summary",
-        "content": "Forest_Night_01 completed a 24-hour simulation achieving 94.2% detection accuracy. Primary concern: network bottleneck at relay nodes R1 and R2.",
+        "content": default_fallback,
     }
 
 

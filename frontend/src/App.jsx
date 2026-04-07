@@ -69,7 +69,7 @@ export default function App(){
       </div>
 
       <div className={`page ${page==='aisummary'?'active':''}`} id="pageAISummary">
-        <AISummary />
+        <AISummary loadedRun={loadedRun} />
       </div>
 
       <div className={`page ${page==='create'?'active':''}`} id="pageCreateRun">

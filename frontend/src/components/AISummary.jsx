@@ -5,8 +5,11 @@ import { useApi } from '../hooks/useApi'
 /**
  * AIAssistant - AI-generated insights and chat interface
  * 
+ * Props:
+ *   loadedRun: object - Currently loaded run object with id, name, etc.
+ * 
  * Fetches:
- *   1. GET /api/ai/summary
+ *   1. GET /api/ai/summary?run_id={runId}
  *   2. POST /api/ai/chat (when user sends message)
  * 
  * Expected responses:
@@ -27,8 +30,8 @@ import { useApi } from '../hooks/useApi'
  *     answer: string
  *   }
  */
-export default function AIAssistant(){
-  const { data, loading } = useApi(()=>fetchAiSummary(), [])
+export default function AIAssistant({loadedRun}){
+  const { data, loading } = useApi(()=>fetchAiSummary(loadedRun?.id), [loadedRun?.id])
   const [q, setQ] = useState('')
   const [messages, setMessages] = useState([])
   const [isSending, setIsSending] = useState(false)
