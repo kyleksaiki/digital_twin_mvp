@@ -218,6 +218,19 @@
     background: rgba(0, 229, 255, 0.05);
 }
 
+/* Ensure selects and their options are high-contrast inside modals */
+.modal-dialog .scp-input,
+.modal-dialog .scp-input option {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.modal-dialog select.scp-input {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+}
+
 .scp-computed {
     display: flex;
     justify-content: space-between;

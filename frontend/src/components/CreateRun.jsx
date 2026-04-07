@@ -159,19 +159,42 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   }
 
   function nx(n) {
-    const area = canvasRef.current.parentElement;
-    const w = area.clientWidth;
+    const canvas = canvasRef.current;
+    if (!canvas) return 0;
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
     return (
       (n.x * w - w / 2) * stateRef.current.zoom + w / 2 + stateRef.current.panX
     );
   }
 
   function ny(n) {
-    const area = canvasRef.current.parentElement;
-    const h = area.clientHeight;
+    const canvas = canvasRef.current;
+    if (!canvas) return 0;
+    const rect = canvas.getBoundingClientRect();
+    const h = rect.height;
     return (
       (n.y * h - h / 2) * stateRef.current.zoom + h / 2 + stateRef.current.panY
     );
+  }
+
+  function clampPan() {
+    const s = stateRef.current;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+
+    const leeway = 60;
+
+    const minPanX = w * (0.5 - s.zoom) - leeway;
+    const maxPanX = w * (s.zoom - 0.5) + leeway;
+    const minPanY = h * (0.5 - s.zoom) - leeway;
+    const maxPanY = h * (s.zoom - 0.5) + leeway;
+
+    s.panX = Math.max(minPanX, Math.min(maxPanX, s.panX));
+    s.panY = Math.max(minPanY, Math.min(maxPanY, s.panY));
   }
 
   function nodeColor(role) {
@@ -180,6 +203,23 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       : role === "relay"
         ? "#a78bfa"
         : "#00e68a";
+  }
+
+  function formatComponentLabel(name) {
+    const map = {
+      sleep: "Processor Sleep",
+      working: "Processor Working",
+      cameraImage: "Camera Image",
+      cameraSleep: "Camera Sleep",
+      micListen: "Mic Listen",
+      micSleep: "Mic Sleep",
+      transmit: "Radio Transmit",
+      receive: "Radio Receive",
+    };
+    if (map[name]) return map[name];
+    // Fallback: split camelCase or underscores into words
+    const spaced = name.replace(/([A-Z])/g, " $1").replace(/[_-]/g, " ");
+    return spaced.charAt(0).toUpperCase() + spaced.slice(1);
   }
 
   function drawCanvas() {
@@ -192,8 +232,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     }
 
     const ctx = canvas.getContext("2d");
-    const w = canvas.clientWidth,
-      h = canvas.clientHeight;
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width,
+      h = rect.height;
     ctx.clearRect(0, 0, w, h);
 
     // Draw Osa Peninsula map background
@@ -258,10 +299,8 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
-      ctx.strokeStyle = isValid
-        ? "rgba(167, 139, 250, 1)"
-        : "rgba(255, 77, 106, 1)";
-      ctx.lineWidth = 2 * s.zoom;
+      ctx.strokeStyle = isValid ? "#7a5dfb" : "#ff4d6a";
+      ctx.lineWidth = Math.max(2, 2.5 * s.zoom);
       ctx.lineCap = "round";
       ctx.stroke();
 
@@ -270,9 +309,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       const midY = (y1 + y2) / 2;
       ctx.beginPath();
       ctx.arc(midX, midY, 4 * s.zoom, 0, Math.PI * 2);
-      ctx.fillStyle = isValid
-        ? "rgba(0, 230, 138, 0.8)"
-        : "rgba(255, 77, 106, 0.8)";
+      ctx.fillStyle = isValid ? "rgba(0, 230, 138, 0.9)" : "rgba(255, 77, 106, 0.95)";
       ctx.fill();
     });
 
@@ -286,8 +323,8 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(mouseX, mouseY);
-      ctx.strokeStyle = "rgba(167, 139, 250, 1)";
-      ctx.lineWidth = 1.5 * s.zoom;
+      ctx.strokeStyle = "#7a5dfb";
+      ctx.lineWidth = Math.max(1, 1.5 * s.zoom);
       ctx.setLineDash([4, 4]);
       ctx.stroke();
       ctx.setLineDash([]);
@@ -308,9 +345,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       if (hl) {
         ctx.beginPath();
         ctx.arc(x, y, sz + 10 * s.zoom, 0, Math.PI * 2);
-        ctx.fillStyle = isConnecting
-          ? "rgba(0, 230, 138, 0.9)"
-          : color + "22";
+        ctx.fillStyle = isConnecting ? "rgba(0, 230, 138, 0.9)" : "rgba(0,0,0,0.06)";
         ctx.fill();
       }
 
@@ -319,13 +354,13 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       if (n.role === "command") {
         ctx.beginPath();
         ctx.arc(x, y, sz, 0, Math.PI * 2);
-        ctx.fillStyle = color + "25";
+        ctx.fillStyle = color;
         ctx.fill();
-        ctx.strokeStyle = isConnecting ? "rgba(0, 230, 138, 0.9)" : color;
+        ctx.strokeStyle = isConnecting ? "rgba(0, 230, 138, 0.95)" : "rgba(0,0,0,0.18)";
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(x, y, sz * 0.35, 0, Math.PI * 2);
-        ctx.fillStyle = color;
+        ctx.fillStyle = "#ffffff";
         ctx.fill();
       } else if (n.role === "relay") {
         const hs = sz;
@@ -336,13 +371,13 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         ctx.arcTo(x + hs, y + hs, x + hs - 4, y + hs, 4);
         ctx.arcTo(x - hs, y + hs, x - hs, y + hs - 4, 4);
         ctx.closePath();
-        ctx.fillStyle = color + "20";
+        ctx.fillStyle = color;
         ctx.fill();
-        ctx.strokeStyle = isConnecting ? "rgba(0, 230, 138, 0.9)" : color;
+        ctx.strokeStyle = isConnecting ? "rgba(0, 230, 138, 0.95)" : "rgba(0,0,0,0.18)";
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(x, y, 3 * s.zoom, 0, Math.PI * 2);
-        ctx.fillStyle = color;
+        ctx.fillStyle = "#ffffff";
         ctx.fill();
       } else {
         const h = sz * 1.15;
@@ -351,13 +386,13 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         ctx.lineTo(x + sz, y + h * 0.6);
         ctx.lineTo(x - sz, y + h * 0.6);
         ctx.closePath();
-        ctx.fillStyle = color + "20";
+        ctx.fillStyle = color;
         ctx.fill();
-        ctx.strokeStyle = isConnecting ? "rgba(0, 230, 138, 0.9)" : color;
+        ctx.strokeStyle = isConnecting ? "rgba(0, 230, 138, 0.95)" : "rgba(0,0,0,0.18)";
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(x, y + h * 0.05, 2.5 * s.zoom, 0, Math.PI * 2);
-        ctx.fillStyle = color;
+        ctx.fillStyle = "#ffffff";
         ctx.fill();
       }
 
@@ -487,6 +522,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     if (s.isDragging) {
       s.panX = s.panStartX + (e.clientX - s.dragStartX);
       s.panY = s.panStartY + (e.clientY - s.dragStartY);
+      clampPan();
       return;
     }
 
@@ -517,6 +553,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     e.preventDefault();
     const s = stateRef.current;
     s.zoom = Math.max(0.5, Math.min(3, s.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+    clampPan();
   }
 
   function onClick(e) {
@@ -529,14 +566,15 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
 
     // If placing a node from toolbar
     if (s.isPlacingNode) {
-      const area = canvas.parentElement;
-      const w = area.clientWidth;
-      const h = area.clientHeight;
+      const rectArea = canvas.getBoundingClientRect();
+      const w = rectArea.width;
+      const h = rectArea.height;
 
       // Convert screen coords to normalized coords
       const x = (mx - w / 2 - s.panX) / (s.zoom * w) + 0.5;
       const y = (my - h / 2 - s.panY) / (s.zoom * h) + 0.5;
 
+      console.log(x, y);
       const role = s.isPlacingNode;
       s.nodeCounter[role]++;
 
@@ -556,8 +594,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
               ? `Shaman II (${id})`
               : `Shaman I (${id})`,
         role,
-        x: Math.max(0, Math.min(1, x)),
-        y: Math.max(0, Math.min(1, y)),
+        x, y
       };
 
       setNodes((prevNodes) => [...prevNodes, newNode]);
@@ -698,17 +735,15 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   }
 
   function zoomIn() {
-    stateRef.current.zoom = Math.max(
-      0.5,
-      Math.min(3, stateRef.current.zoom * 1.2),
-    );
+    const s = stateRef.current;
+    s.zoom = Math.max(0.5, Math.min(3, s.zoom * 1.2));
+    clampPan();
   }
 
   function zoomOut() {
-    stateRef.current.zoom = Math.max(
-      0.5,
-      Math.min(3, stateRef.current.zoom * 0.8),
-    );
+    const s = stateRef.current;
+    s.zoom = Math.max(0.5, Math.min(3, s.zoom * 0.8));
+    clampPan();
   }
 
   function recenter() {
@@ -809,7 +844,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
               width="12"
               height="12"
               rx="3"
-              fill="rgba(167,139,250,0.2)"
+              fill="#a78bfa"
               stroke="#a78bfa"
               strokeWidth="1.5"
             ></rect>
@@ -825,7 +860,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
           >
             <polygon
               points="7,1 13,13 1,13"
-              fill="rgba(0,230,138,0.2)"
+              fill="#00e68a"
               stroke="#00e68a"
               strokeWidth="1.5"
             ></polygon>
@@ -918,7 +953,6 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                       className="scp-input"
                       value={shamanIProcessor}
                       onChange={(e) => setShamanIProcessor(e.target.value)}
-                      style={{ appearance: "auto" }}
                     >
                       <option value="ESP32">ESP32</option>
                       <option value="Radxa Zero">Radxa Zero</option>
@@ -998,14 +1032,8 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                                 borderBottom: "1px solid var(--border-muted)",
                               }}
                             >
-                              <td
-                                style={{
-                                  padding: "8px 4px",
-                                  textTransform: "capitalize",
-                                  color: "var(--text-secondary)",
-                                }}
-                              >
-                                {name}
+                              <td style={{ padding: "8px 4px", color: "var(--text-primary)" }}>
+                                {formatComponentLabel(name)}
                               </td>
                               <td style={{ padding: "4px" }}>
                                 <input
@@ -1098,7 +1126,6 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                       className="scp-input"
                       value={shamanIIProcessor}
                       onChange={(e) => setShamanIIProcessor(e.target.value)}
-                      style={{ appearance: "auto" }}
                     >
                       <option value="ESP32">ESP32</option>
                       <option value="Radxa Zero">Radxa Zero</option>
@@ -1178,14 +1205,8 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                                 borderBottom: "1px solid var(--border-muted)",
                               }}
                             >
-                              <td
-                                style={{
-                                  padding: "8px 4px",
-                                  textTransform: "capitalize",
-                                  color: "var(--text-secondary)",
-                                }}
-                              >
-                                {name}
+                              <td style={{ padding: "8px 4px", color: "var(--text-primary)" }}>
+                                {formatComponentLabel(name)}
                               </td>
                               <td style={{ padding: "4px" }}>
                                 <input
