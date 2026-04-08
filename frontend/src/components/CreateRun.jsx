@@ -186,12 +186,10 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     const w = rect.width;
     const h = rect.height;
 
-    const leeway = 60;
-
-    const minPanX = w * (0.5 - s.zoom) - leeway;
-    const maxPanX = w * (s.zoom - 0.5) + leeway;
-    const minPanY = h * (0.5 - s.zoom) - leeway;
-    const maxPanY = h * (s.zoom - 0.5) + leeway;
+    const minPanX = w * (0.5 - s.zoom);
+    const maxPanX = w * (s.zoom - 0.5);
+    const minPanY = h * (0.5 - s.zoom);
+    const maxPanY = h * (s.zoom - 0.5);
 
     s.panX = Math.max(minPanX, Math.min(maxPanX, s.panX));
     s.panY = Math.max(minPanY, Math.min(maxPanY, s.panY));
