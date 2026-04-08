@@ -26,15 +26,34 @@ export default function App(){
   const [panelOpen, setPanelOpen] = useState(false)
   const [reroutes, setReroutes] = useState([])
 
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('theme-preference')
+    if (saved) return saved === 'dark'
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  })
+
   useEffect(() => {
     document.getElementById('app')?.classList.remove('panel-open');
     setPanelOpen(false);
   }, [page]);
 
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.remove('light-theme')
+    } else {
+      document.documentElement.classList.add('light-theme')
+    }
+    localStorage.setItem('theme-preference', isDarkMode ? 'dark' : 'light')
+  }, [isDarkMode])
+
+  function toggleTheme() {
+    setIsDarkMode(!isDarkMode)
+  }
+
   return (
     <div className={`app ${panelOpen ? 'panel-open':''}`} id="app">
-      <Topbar title={page} />
-      <Sidebar onNavigate={setPage} active={page} reroutes={reroutes} />
+      <Topbar title={page} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} />
+      <Sidebar onNavigate={setPage} active={page} reroutes={reroutes} isRunLoaded={loadedRun != null} />
 
       <div className={`page ${page==='runsel'?'active':''}`} id="pageRunSelector">
         <div className="loaded-run-bar" id="loadedRunBar" style={{display: loadedRun? 'flex':'none'}}>
@@ -53,7 +72,7 @@ export default function App(){
       </div>
 
       <div className={`page ${page==='aisummary'?'active':''}`} id="pageAISummary">
-        <AISummary />
+        <AISummary loadedRun={loadedRun} />
       </div>
 
       <div className={`page ${page==='create'?'active':''}`} id="pageCreateRun">
