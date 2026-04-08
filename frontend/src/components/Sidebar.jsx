@@ -9,7 +9,7 @@ import React from 'react'
  * 
  * Displays different filters depending on active page (e.g., network filters for NetMap)
  */
-export default function Sidebar({onNavigate, active}){
+export default function Sidebar({onNavigate, active, reroutes = []}){
   return (
     <div className="sidebar" id="sidebar">
       <div className="sb-label">Run Analysis</div>
@@ -39,11 +39,16 @@ export default function Sidebar({onNavigate, active}){
         <div className="sb-divider"></div>
         <div className="sb-label">Reroutes</div>
         <details className="reroutes-panel">
-          <summary className="reroutes-header" id="reroutesHdr">Reroute Events</summary>
+          <summary className="reroutes-header" id="reroutesHdr">Reroute Events ({reroutes.length})</summary>
           <div className="reroutes-body" id="reroutesBody">
-            <div className="reroute-item"><div className="reroute-dot"></div><span className="reroute-from">S3</span> → <span className="reroute-to">R4</span><span style={{marginLeft:'auto',color:'var(--text-muted)',fontSize:9}}>03:12</span></div>
-            <div className="reroute-item"><div className="reroute-dot"></div><span className="reroute-from">S7</span> → <span className="reroute-to">R3</span><span style={{marginLeft:'auto',color:'var(--text-muted)',fontSize:9}}>07:45</span></div>
-            <div className="reroute-item"><div className="reroute-dot"></div><span className="reroute-from">S11</span> → <span className="reroute-to">R3</span><span style={{marginLeft:'auto',color:'var(--text-muted)',fontSize:9}}>11:22</span></div>
+            {reroutes.length > 0 ? reroutes.map((r, i) => (
+              <div className="reroute-item" key={i}>
+                <div className="reroute-dot"></div>
+                <span className="reroute-from">{r.from}</span> → <span className="reroute-to">{r.to}</span>
+              </div>
+            )) : (
+              <div style={{fontSize:11,color:'var(--text-muted)',padding:'4px 0'}}>No reroute events</div>
+            )}
           </div>
         </details>
       </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Topbar from './components/Topbar'
 import Sidebar from './components/Sidebar'
 import RunSelector from './components/RunSelector'
@@ -24,11 +24,17 @@ export default function App(){
   const [page, setPage] = useState('runsel')
   const [loadedRun, setLoadedRun] = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
- 
+  const [reroutes, setReroutes] = useState([])
+
+  useEffect(() => {
+    document.getElementById('app')?.classList.remove('panel-open');
+    setPanelOpen(false);
+  }, [page]);
+
   return (
     <div className={`app ${panelOpen ? 'panel-open':''}`} id="app">
       <Topbar title={page} />
-      <Sidebar onNavigate={setPage} active={page} />
+      <Sidebar onNavigate={setPage} active={page} reroutes={reroutes} />
 
       <div className={`page ${page==='runsel'?'active':''}`} id="pageRunSelector">
         <div className="loaded-run-bar" id="loadedRunBar" style={{display: loadedRun? 'flex':'none'}}>
@@ -43,7 +49,7 @@ export default function App(){
       </div>
 
       <div className={`page ${page==='netmap'?'active':''}`} id="pageNetMap">
-        <NetMap run={loadedRun} onPanelOpen={(open)=>setPanelOpen(open)} />
+        <NetMap run={loadedRun} onPanelOpen={(open)=>setPanelOpen(open)} onReroutes={setReroutes} />
       </div>
 
       <div className={`page ${page==='aisummary'?'active':''}`} id="pageAISummary">

@@ -7,7 +7,7 @@ import React from 'react'
  *   title: string - current page key ("overview", "netmap", "aisummary", "runsel")
  */
 export default function Topbar({title}){
-  const titles = { runsel:'Run Selector', overview:'Overview Dashboard', netmap:'Network Map', aisummary:'AI Assistant' }
+  const titles = { runsel:'Run Selector', overview:'Overview Dashboard', netmap:'Network Map', aisummary:'AI Assistant', create:'Create New Run' }
   return (
     <div className="topbar">
       <div className="topbar-brand">DT Results</div>

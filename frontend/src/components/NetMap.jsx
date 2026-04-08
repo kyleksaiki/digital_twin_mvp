@@ -61,7 +61,7 @@ import { fetchNetmap } from "../api";
  * - Hover tooltips
  * - Click to show detail panel
  */
-export default function NetMap({ run, onPanelOpen }) {
+export default function NetMap({ run, onPanelOpen, onReroutes }) {
   const canvasRef = useRef(null);
   const tipRef = useRef(null);
   const mapImageRef = useRef(null);
@@ -96,6 +96,7 @@ export default function NetMap({ run, onPanelOpen }) {
         stateRef.current.nodes = d.nodes || [];
         stateRef.current.edges = d.edges || [];
         stateRef.current.reroutes = d.reroutes || [];
+        if (onReroutes) onReroutes(d.reroutes || []);
         setHasData((d.nodes || []).length > 0);
         setLoading(false);
         if ((d.nodes || []).length > 0) {
@@ -402,7 +403,7 @@ export default function NetMap({ run, onPanelOpen }) {
         ctx.fillStyle = "rgba(0,0,0,0.06)";
         ctx.fill();
       }
-      ctx.lineWidth = hl ? 2.5 : 1.8;
+      ctx.lineWidth = hl ? 3.0 : 2.5;
       if (n.role === "command") {
         ctx.beginPath();
         ctx.arc(x, y, sz, 0, Math.PI * 2);
@@ -448,7 +449,7 @@ export default function NetMap({ run, onPanelOpen }) {
         ctx.fill();
       }
       ctx.font = `500 ${(n.role === "command" ? 10 : 9) * s.zoom}px "JetBrains Mono"`;
-      ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+      ctx.fillStyle = "rgba(228, 234, 244, 0.95)";
       ctx.textAlign = "center";
       ctx.fillText(n.id, x, y + sz + 12 * s.zoom);
       if (n.role !== "command") {
@@ -635,20 +636,85 @@ export default function NetMap({ run, onPanelOpen }) {
     if (!p) return;
     document.getElementById("app").classList.add("panel-open");
     const c = nodeColor(n);
-    const bc =
-      n.battery > 60
-        ? "var(--green)"
-        : n.battery > 30
-          ? "var(--amber)"
-          : "var(--red)";
-    p.innerHTML = `<div class="dp-header"><div><div class="dp-title" style="color:${c}">${n.id} — ${n.label.replace("\n", " ")}</div><div class="dp-subtitle">${n.role === "command" ? "Command Center" : n.role === "relay" ? "Shaman II (Relay)" : "Shaman I (Sensor)"}</div></div><div class="dp-close" onclick="document.getElementById('app').classList.remove('panel-open')">✕</div></div><div class="dp-section"><div class="dp-section-title">Status</div><div class="dp-row"><span class="dp-row-l">Health</span><span class="dp-row-v" style="color:${n.health === "good" ? "var(--green)" : n.health === "warning" ? "var(--amber)" : "var(--red)"}">${(n.health || "").toUpperCase()}</span></div><div class="dp-row"><span class="dp-row-l">Battery</span><span class="dp-row-v" style="color:${bc}">${n.battery}%</span></div></div>`;
+    const bc = n.battery > 60 ? "var(--green)" : n.battery > 30 ? "var(--amber)" : "var(--red)";
+    const hc = n.health === "good" ? "var(--green)" : n.health === "warning" ? "var(--amber)" : "var(--red)";
+    const roleLabel = n.role === "command" ? "Command Center" : n.role === "relay" ? "Shaman II (Relay)" : "Shaman I (Sensor)";
+    const pw = n.powerBreakdown || {};
+    const pwTotal = (pw.radio || 0) + (pw.processor || 0) + (pw.mic || 0) || 1;
+    const pwRadioPct = Math.round(((pw.radio || 0) / pwTotal) * 100);
+    const pwProcPct = Math.round(((pw.processor || 0) / pwTotal) * 100);
+    const pwMicPct = Math.round(((pw.mic || 0) / pwTotal) * 100);
+    const events = n.events || [];
+
+    p.innerHTML = `
+      <div class="dp-header">
+        <div>
+          <div class="dp-title" style="color:${c}">${n.id} — ${(n.label || "").replace("\\n", " ")}</div>
+          <div class="dp-subtitle">${roleLabel}</div>
+        </div>
+        <div class="dp-close" onclick="document.getElementById('app').classList.remove('panel-open')">✕</div>
+      </div>
+      <div class="dp-section">
+        <div class="dp-section-title">Status</div>
+        <div class="dp-row"><span class="dp-row-l">Health</span><span class="dp-row-v" style="color:${hc}">${(n.health || "").toUpperCase()}</span></div>
+        <div class="dp-row"><span class="dp-row-l">Battery</span><span class="dp-row-v" style="color:${bc}">${n.battery}%</span></div>
+        <div class="dp-bar-row"><span class="dp-bar-label">Battery</span><div class="dp-bar-track"><div class="dp-bar-fill" style="width:${n.battery}%;background:${bc}"></div></div><span class="dp-bar-value">${n.battery}%</span></div>
+        <div class="dp-row"><span class="dp-row-l">Drain Rate</span><span class="dp-row-v">${n.drain}%/hr</span></div>
+      </div>
+      <div class="dp-section">
+        <div class="dp-section-title">Network</div>
+        <div class="dp-row"><span class="dp-row-l">Traffic</span><span class="dp-row-v">${n.traffic}%</span></div>
+        <div class="dp-row"><span class="dp-row-l">Packets In</span><span class="dp-row-v">${(n.packetsIn || 0).toLocaleString()}</span></div>
+        <div class="dp-row"><span class="dp-row-l">Packets Out</span><span class="dp-row-v">${(n.packetsOut || 0).toLocaleString()}</span></div>
+        <div class="dp-row"><span class="dp-row-l">Retries</span><span class="dp-row-v">${n.retries}</span></div>
+        <div class="dp-row"><span class="dp-row-l">Collisions</span><span class="dp-row-v">${n.collisions}</span></div>
+      </div>
+      <div class="dp-section">
+        <div class="dp-section-title">AI Detections</div>
+        <div class="dp-row"><span class="dp-row-l">Detections</span><span class="dp-row-v" style="color:var(--cyan)">${n.aiDet}</span></div>
+      </div>
+      <div class="dp-section">
+        <div class="dp-section-title">Power Breakdown</div>
+        <div class="dp-bar-row"><span class="dp-bar-label">Radio</span><div class="dp-bar-track"><div class="dp-bar-fill" style="width:${pwRadioPct}%;background:var(--cyan)"></div></div><span class="dp-bar-value">${pw.radio || 0}mW</span></div>
+        <div class="dp-bar-row"><span class="dp-bar-label">Processor</span><div class="dp-bar-track"><div class="dp-bar-fill" style="width:${pwProcPct}%;background:var(--purple)"></div></div><span class="dp-bar-value">${pw.processor || 0}mW</span></div>
+        <div class="dp-bar-row"><span class="dp-bar-label">Mic</span><div class="dp-bar-track"><div class="dp-bar-fill" style="width:${pwMicPct}%;background:var(--green)"></div></div><span class="dp-bar-value">${pw.mic || 0}mW</span></div>
+      </div>
+      ${events.length > 0 ? `
+      <div class="dp-section">
+        <div class="dp-section-title">Events</div>
+        ${events.map(ev => `<div class="dp-event"><div class="dp-event-dot" style="background:${c}"></div><span class="dp-event-text">${ev}</span></div>`).join("")}
+      </div>` : ""}
+    `;
   }
 
   function showEdgePanel(e) {
     const p = document.getElementById("detailPanel");
     if (!p) return;
     document.getElementById("app").classList.add("panel-open");
-    p.innerHTML = `<div class="dp-header"><div><div class="dp-title">${e.from} ↔ ${e.to}</div><div class="dp-subtitle">Link Detail</div></div><div class="dp-close" onclick="document.getElementById('app').classList.remove('panel-open')">✕</div></div><div class="dp-section"><div class="dp-section-title">Link Metrics</div><div class="dp-row"><span class="dp-row-l">Congestion</span><span class="dp-row-v">${e.congestion}%</span></div><div class="dp-row"><span class="dp-row-l">Packet Loss</span><span class="dp-row-v">${e.packetLoss}%</span></div></div>`;
+    const cc = e.congestion < 30 ? "var(--green)" : e.congestion < 60 ? "var(--amber)" : "var(--red)";
+    const lc = e.latency < 30 ? "var(--green)" : e.latency < 80 ? "var(--amber)" : "var(--red)";
+    const plc = e.packetLoss < 2 ? "var(--green)" : e.packetLoss < 5 ? "var(--amber)" : "var(--red)";
+
+    p.innerHTML = `
+      <div class="dp-header">
+        <div>
+          <div class="dp-title">${e.from} ↔ ${e.to}</div>
+          <div class="dp-subtitle">Link Detail</div>
+        </div>
+        <div class="dp-close" onclick="document.getElementById('app').classList.remove('panel-open')">✕</div>
+      </div>
+      <div class="dp-section">
+        <div class="dp-section-title">Link Metrics</div>
+        <div class="dp-row"><span class="dp-row-l">Congestion</span><span class="dp-row-v" style="color:${cc}">${e.congestion}%</span></div>
+        <div class="dp-bar-row"><span class="dp-bar-label">Cong.</span><div class="dp-bar-track"><div class="dp-bar-fill" style="width:${e.congestion}%;background:${cc}"></div></div><span class="dp-bar-value">${e.congestion}%</span></div>
+        <div class="dp-row"><span class="dp-row-l">Packet Loss</span><span class="dp-row-v" style="color:${plc}">${e.packetLoss}%</span></div>
+        <div class="dp-row"><span class="dp-row-l">Retries</span><span class="dp-row-v">${e.retries}</span></div>
+        <div class="dp-row"><span class="dp-row-l">Collisions</span><span class="dp-row-v">${e.collisions}</span></div>
+        <div class="dp-row"><span class="dp-row-l">Avg Delay</span><span class="dp-row-v">${e.avgDelay}ms</span></div>
+        <div class="dp-row"><span class="dp-row-l">Latency</span><span class="dp-row-v" style="color:${lc}">${e.latency}ms</span></div>
+        <div class="dp-row"><span class="dp-row-l">Reroutes</span><span class="dp-row-v">${e.reroutes}</span></div>
+      </div>
+    `;
   }
 
   return (
