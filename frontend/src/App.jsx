@@ -50,7 +50,7 @@ export default function App(){
   return (
     <div className={`app ${panelOpen ? 'panel-open':''}`} id="app">
       <Topbar title={page} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} />
-      <Sidebar onNavigate={setPage} active={page} />
+      <Sidebar onNavigate={setPage} active={page} isRunLoaded={loadedRun != null}/>
 
       <div className={`page ${page==='runsel'?'active':''}`} id="pageRunSelector">
         <div className="loaded-run-bar" id="loadedRunBar" style={{display: loadedRun? 'flex':'none'}}>

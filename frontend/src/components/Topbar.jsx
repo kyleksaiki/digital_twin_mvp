@@ -9,10 +9,10 @@ import React from 'react'
  *   onToggleTheme: function - callback to toggle theme
  */
 export default function Topbar({title, isDarkMode, onToggleTheme}){
-  const titles = { runsel:'Run Selector', overview:'Overview Dashboard', netmap:'Network Map', aisummary:'AI Assistant' }
+  const titles = { runsel:'Run Selector', overview:'Overview Dashboard', netmap:'Network Map', aisummary:'AI Assistant', create:'Create Run'}
   return (
     <div className="topbar">
-      <div className="topbar-brand">DT Results</div>
+      <div className="topbar-brand">Digital Twin</div>
       <div className="topbar-sep" />
       <div className="topbar-title" id="topbarTitle">{titles[title]||''}</div>
       <div className="topbar-spacer" />
@@ -23,7 +23,7 @@ export default function Topbar({title, isDarkMode, onToggleTheme}){
         title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         aria-label="Toggle theme"
       >
-        {isDarkMode ? '☀️' : '🌙'}
+        {isDarkMode ? '☼' : '☾'}
       </button>
     </div>
   )

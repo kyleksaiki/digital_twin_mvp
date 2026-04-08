@@ -662,7 +662,7 @@ th input{
     justify-content: center;
     padding: 40px;
     border: none;
-    background: transparent;
+    background: var(--bg-deep);
 }
 
 .modal-spinner {
