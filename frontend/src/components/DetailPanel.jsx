@@ -6,7 +6,7 @@ export default function DetailPanel(){
       <div className="dp-header">
         <div>
           <div className="dp-title">Details</div>
-          <div className="dp-subtitle">Select a node or edge</div>
+          <div className="dp-subtitle">Select a node</div>
         </div>
         <div className="dp-close">×</div>
       </div>

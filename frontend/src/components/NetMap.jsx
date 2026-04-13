@@ -344,12 +344,11 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
         y2 = ny(t);
       const wgt = Math.max(1.5, (e.congestion / 100) * 7 * s.zoom);
       const c = congColor(e.congestion);
-      const hl = s.hoveredEdge === e || s.selectedEdge === e;
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
-      ctx.strokeStyle = rgb(c, hl ? 0.95 : 0.7);
-      ctx.lineWidth = Math.max(1.5, hl ? wgt + 2 : Math.max(wgt, 2));
+      ctx.strokeStyle = rgb(c, 0.95);
+      ctx.lineWidth = Math.max(1.5, wgt + 2);
       ctx.lineCap = "round";
       ctx.stroke();
       const pc = Math.ceil(e.congestion / 25);
@@ -494,7 +493,7 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
 
   function onMouseDown(e) {
     const s = stateRef.current;
-    if (e.button === 0 && !s.hoveredNode && !s.hoveredEdge) {
+    if (e.button === 0 && !s.hoveredNode) {
       s.isDragging = true;
       s.dragStartX = e.clientX;
       s.dragStartY = e.clientY;
@@ -518,7 +517,6 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     }
     // hover detection
     s.hoveredNode = null;
-    s.hoveredEdge = null;
     for (const n of s.nodes) {
       const dx = mx - nx(n),
         dy = my - ny(n);
@@ -528,17 +526,6 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
         s.hoveredNode = n;
         canvas.style.cursor = "pointer";
         showTipForNode(n, mx, my);
-        return;
-      }
-    }
-    for (const ed of s.edges) {
-      const f = s.nodes.find((n) => n.id === ed.from),
-        t = s.nodes.find((n) => n.id === ed.to);
-      if (!f || !t) continue;
-      if (distToSeg(mx, my, nx(f), ny(f), nx(t), ny(t)) < 8 * s.zoom) {
-        s.hoveredEdge = ed;
-        canvas.style.cursor = "pointer";
-        showTipForEdge(ed, mx, my);
         return;
       }
     }
@@ -559,11 +546,7 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
   }
   function onClick() {
     const s = stateRef.current;
-    if (s.hoveredNode) {
-      showNodePanel(s.hoveredNode);
-    } else if (s.hoveredEdge) {
-      showEdgePanel(s.hoveredEdge);
-    }
+    if (s.hoveredNode) showNodePanel(s.hoveredNode);
   }
 
   function zoomIn() {
@@ -687,35 +670,6 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     `;
   }
 
-  function showEdgePanel(e) {
-    const p = document.getElementById("detailPanel");
-    if (!p) return;
-    document.getElementById("app").classList.add("panel-open");
-    const cc = e.congestion < 30 ? "var(--green)" : e.congestion < 60 ? "var(--amber)" : "var(--red)";
-    const lc = e.latency < 30 ? "var(--green)" : e.latency < 80 ? "var(--amber)" : "var(--red)";
-    const plc = e.packetLoss < 2 ? "var(--green)" : e.packetLoss < 5 ? "var(--amber)" : "var(--red)";
-
-    p.innerHTML = `
-      <div class="dp-header">
-        <div>
-          <div class="dp-title">${e.from} ↔ ${e.to}</div>
-          <div class="dp-subtitle">Link Detail</div>
-        </div>
-        <div class="dp-close" onclick="document.getElementById('app').classList.remove('panel-open')">✕</div>
-      </div>
-      <div class="dp-section">
-        <div class="dp-section-title">Link Metrics</div>
-        <div class="dp-row"><span class="dp-row-l">Congestion</span><span class="dp-row-v" style="color:${cc}">${e.congestion}%</span></div>
-        <div class="dp-bar-row"><span class="dp-bar-label">Cong.</span><div class="dp-bar-track"><div class="dp-bar-fill" style="width:${e.congestion}%;background:${cc}"></div></div><span class="dp-bar-value">${e.congestion}%</span></div>
-        <div class="dp-row"><span class="dp-row-l">Packet Loss</span><span class="dp-row-v" style="color:${plc}">${e.packetLoss}%</span></div>
-        <div class="dp-row"><span class="dp-row-l">Retries</span><span class="dp-row-v">${e.retries}</span></div>
-        <div class="dp-row"><span class="dp-row-l">Collisions</span><span class="dp-row-v">${e.collisions}</span></div>
-        <div class="dp-row"><span class="dp-row-l">Avg Delay</span><span class="dp-row-v">${e.avgDelay}ms</span></div>
-        <div class="dp-row"><span class="dp-row-l">Latency</span><span class="dp-row-v" style="color:${lc}">${e.latency}ms</span></div>
-        <div class="dp-row"><span class="dp-row-l">Reroutes</span><span class="dp-row-v">${e.reroutes}</span></div>
-      </div>
-    `;
-  }
 
   return (
     <div
