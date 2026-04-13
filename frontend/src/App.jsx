@@ -21,6 +21,7 @@ import './styles/AISummary.css'
 import './styles/CreateRun.css'
 
 export default function App(){
+  const titles = { runsel:'Run Selector', overview:'Overview Dashboard', netmap:'Network Map', aisummary:'AI Assistant', create:'Create New Run' }
   const [page, setPage] = useState('runsel')
   const [loadedRun, setLoadedRun] = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
@@ -34,6 +35,7 @@ export default function App(){
 
   useEffect(() => {
     document.getElementById('app')?.classList.remove('panel-open');
+    document.title= ("Digital Twin") + (titles[page] ? ("  |  " + titles[page]) : '');
     setPanelOpen(false);
   }, [page]);
 
@@ -52,7 +54,7 @@ export default function App(){
 
   return (
     <div className={`app ${panelOpen ? 'panel-open':''}`} id="app">
-      <Topbar title={page} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} />
+      <Topbar title={titles[page]} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} />
       <Sidebar onNavigate={setPage} active={page} reroutes={reroutes} isRunLoaded={loadedRun != null} />
 
       <div className={`page ${page==='runsel'?'active':''}`} id="pageRunSelector">

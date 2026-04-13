@@ -9,14 +9,13 @@ import React from 'react'
  *   onToggleTheme: function - callback to toggle theme
  */
 export default function Topbar({title, isDarkMode, onToggleTheme}){
-  const titles = { runsel:'Run Selector', overview:'Overview Dashboard', netmap:'Network Map', aisummary:'AI Assistant', create:'Create New Run' }
   return (
     <div className="topbar">
       <div className="topbar-brand">Digital Twin</div>
       <div className="topbar-sep" />
-      <div className="topbar-title" id="topbarTitle">{titles[title]||''}</div>
+      <div className="topbar-title" id="topbarTitle">{title||''}</div>
       <div className="topbar-spacer" />
-      {title === 'overview' && <button className="topbar-btn">Export Report</button>}
+      {title === 'Overview Dashboard' && <button className="topbar-btn">Export Report</button>}
       <button 
         className="topbar-btn theme-toggle"
         onClick={onToggleTheme}

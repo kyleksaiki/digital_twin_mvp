@@ -12,15 +12,18 @@ import React from 'react'
 export default function Sidebar({onNavigate, active, reroutes = [], isRunLoaded}){
   return (
     <div className="sidebar" id="sidebar">
+      
+      <div className="sb-label">Run Tools</div>
+      <div className={`sb-item ${active==='runsel'?'active':''}`} id="navRunSel" onClick={()=>onNavigate('runsel')}><span className="sb-icon">☰</span> Run Selector</div>
+      <div className={`sb-item ${active==='create'?'active':''}`} id="navCreate" onClick={()=>onNavigate('create')}><span className="sb-icon">＋</span> Create New Run</div>
+
+
+      <div className="sb-divider"></div>
+
       <div className="sb-label">Run Analysis</div>
       <div className={`sb-item ${active==='overview'?'active':''} ${isRunLoaded?'':'disabled'}`} id="navOverview" onClick={()=>isRunLoaded?onNavigate('overview'):''}><span className="sb-icon">◫</span> Overview Dashboard</div>
       <div className={`sb-item ${active==='netmap'?'active':''} ${isRunLoaded?'':'disabled'}`} id="navNetMap" onClick={()=>isRunLoaded?onNavigate('netmap'):''}><span className="sb-icon">⬡</span> Network Map</div>
       <div className={`sb-item ${active==='aisummary'?'active':''} ${isRunLoaded?'':'disabled'}`} id="navAISummary" onClick={()=>isRunLoaded?onNavigate('aisummary'):''}><span className="sb-icon">◈</span> AI Assistant</div>
-
-      <div className="sb-divider"></div>
-      <div className="sb-label">Run Tools</div>
-      <div className={`sb-item ${active==='runsel'?'active':''}`} id="navRunSel" onClick={()=>onNavigate('runsel')}><span className="sb-icon">☰</span> Run Selector</div>
-      <div className={`sb-item ${active==='create'?'active':''}`} id="navCreate" onClick={()=>onNavigate('create')}><span className="sb-icon">＋</span> Create New Run</div>
 
       <div className={`sb-ctx ${active==='netmap'?'visible':''}`} id="ctxNetMap">
         <div className="sb-divider"></div>
