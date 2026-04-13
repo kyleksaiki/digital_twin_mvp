@@ -154,7 +154,7 @@
     width: 15px;
     height: 15px;
     border: 1.5px solid var(--border-active);
-    border-radius: 3px;
+    border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -172,7 +172,7 @@
 }
 
 .custom-cb.checked::after {
-    content: '✓';
+    content: '●';
     color: #fff;
     font-size: 9px;
     font-weight: 700;
