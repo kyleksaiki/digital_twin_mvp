@@ -18,14 +18,14 @@ class RunRow(Base):
     name       = Column(String(100), nullable=False)
     date       = Column(Date, nullable=False)
     scenario   = Column(String(100), nullable=False)
-    model      = Column(String(100), nullable=False)
-    hw         = Column(String(50), nullable=False)
+    shamani    = Column(String(50), nullable=False)
+    shamanii   = Column(String(50), nullable=False)
     duration   = Column(String(20), nullable=False)
     status     = Column(Enum("pass", "warning", "fail"), nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     # Relationships
-    metrics            = relationship("RunMetricsRow",           back_populates="run", uselist=False, cascade="all, delete-orphan")
+    metrics            = relationship("RunMetricsRow",            back_populates="run", uselist=False, cascade="all, delete-orphan")
     detections         = relationship("DetectionByTypeRow",       back_populates="run", cascade="all, delete-orphan")
     latency_by_rank    = relationship("LatencyByRankRow",         back_populates="run", cascade="all, delete-orphan")
     acc_curve          = relationship("AccuracyConfidenceCurveRow", back_populates="run", cascade="all, delete-orphan")

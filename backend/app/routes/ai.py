@@ -63,7 +63,6 @@ def get_summary(run_id: int = Query(None), db: Session = Depends(get_db)):
                 "name": run_row.name,
                 "duration": run_row.duration,
                 "scenario": run_row.scenario,
-                "model": run_row.model,
                 "status": run_row.status,
                 "date": str(run_row.date),
             }
@@ -91,7 +90,6 @@ def get_summary(run_id: int = Query(None), db: Session = Depends(get_db)):
 Run: {run_details['name']}
 Duration: {run_details['duration']}
 Scenario: {run_details['scenario']}
-Model: {run_details['model']}
 Status: {run_details['status']}
 """
             

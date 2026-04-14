@@ -15,7 +15,6 @@ import { useApi } from '../hooks/useApi'
  *         name: string
  *         date: string (YYYY-MM-DD)
  *         scenario: string
- *         model: string (e.g., "BirdNET v2.4")
  *         hw: string (e.g., "Radxa Zero" or "ESP32")
  *         duration: string (e.g., "24h", "12h", "8h")
  *         status: "pass" | "warning" | "fail"
@@ -42,10 +41,8 @@ export default function RunSelector({page, onOpen}){
     return (
       r.name.toLowerCase().includes(query) ||
       r.scenario.toLowerCase().includes(query) ||
-      r.model.toLowerCase().includes(query) ||
       (r.shamanIProcessor && r.shamanIProcessor.toLowerCase().includes(query)) ||
       (r.shamanIIProcessor && r.shamanIIProcessor.toLowerCase().includes(query)) ||
-      (r.hw && r.hw.toLowerCase().includes(query)) ||
       r.status.toLowerCase().includes(query) ||
       r.date.includes(query)
     )
@@ -92,7 +89,6 @@ export default function RunSelector({page, onOpen}){
               <th>Run Name</th>
               <th>Date</th>
               <th>Scenario</th>
-              <th>AI Model</th>
               <th>Shaman I Processor</th>
               <th>Shaman II Processor</th>
               <th>Duration</th>
@@ -109,8 +105,7 @@ export default function RunSelector({page, onOpen}){
                   <td>{r.name}</td>
                   <td style={{fontFamily:'var(--font-mono)',fontSize:11}}>{r.date}</td>
                   <td>{r.scenario}</td>
-                  <td><span className="badge badge-model">{r.model}</span></td>
-                  <td><span className="badge badge-hw">{r.shamanIProcessor || r.hw || "—"}</span></td>
+                  <td><span className="badge badge-hw">{r.shamanIProcessor || "—"}</span></td>
                   <td><span className="badge badge-hw">{r.shamanIIProcessor || "—"}</span></td>
                   <td style={{fontFamily:'var(--font-mono)',fontSize:11}}>{r.duration}</td>
                   <td><span className={`status-dot ${r.status}`}></span>{r.status.charAt(0).toUpperCase()+r.status.slice(1)}</td>

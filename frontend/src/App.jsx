@@ -60,7 +60,7 @@ export default function App(){
       <div className={`page ${page==='runsel'?'active':''}`} id="pageRunSelector">
         <div className="loaded-run-bar" id="loadedRunBar" style={{display: loadedRun? 'flex':'none'}}>
           <div className="dot"></div>
-          <span id="loadedRunText">{loadedRun? `Loaded: ${loadedRun.name} (${loadedRun.hw}, ${loadedRun.duration})` : ''}</span>
+          <span id="loadedRunText">{loadedRun? `Loaded: ${loadedRun.name}` : ''}</span>
         </div>
         <RunSelector page={page} onOpen={async (r)=>{ setLoadedRun(r); setPage('overview') }} />
       </div>

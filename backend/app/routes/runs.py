@@ -20,10 +20,8 @@ class CreateRunRequest(BaseModel):
     """Request body for creating a new run."""
     name: str
     scenario: str
-    model: str
-    hw: str
-    shamanIProcessor: Optional[str] = None
-    shamanIIProcessor: Optional[str] = None
+    shamani: str
+    shamanii: str
     duration: str
     status: Optional[str] = "pass"
     nodes: List[Dict[str, Any]]
@@ -71,23 +69,14 @@ def _generate_mock_edge_data() -> Dict[str, Any]:
 
 
 def _row_to_run(row: RunRow) -> Run:
-    # Parse hw field to extract separate processors
-    shaman_i = None
-    shaman_ii = None
-    if " / " in row.hw:
-        parts = row.hw.split(" / ")
-        shaman_i = parts[0].strip() if len(parts) > 0 else None
-        shaman_ii = parts[1].strip() if len(parts) > 1 else None
-    
     return Run(
         id=row.id,
         name=row.name,
         date=str(row.date),
         scenario=row.scenario,
-        model=row.model,
-        hw=row.hw,
-        shamanIProcessor=shaman_i,
-        shamanIIProcessor=shaman_ii,
+        model="",
+        shamanIProcessor=row.shamani,
+        shamanIIProcessor=row.shamanii,
         duration=row.duration,
         status=row.status,
     )
@@ -107,8 +96,9 @@ def get_run_detail(run_id: int, db: Session = Depends(get_db)) -> RunDetail:
 
     if not row:
         return RunDetail(
-            id=run_id, name="Unknown Run", model="Unknown",
-            hw="Unknown", duration="N/A", status="unknown", metrics={},
+            id=run_id, name="Unknown Run", 
+            shamani="Unknown", shamanii="Unknown", 
+            duration="N/A", status="unknown", metrics={},
         )
 
     m: RunMetricsRow = row.metrics
@@ -125,18 +115,10 @@ def get_run_detail(run_id: int, db: Session = Depends(get_db)) -> RunDetail:
             "conf_threshold":  m.conf_threshold,
         }
 
-    # Parse hw field to extract separate processors
-    shaman_i = None
-    shaman_ii = None
-    if " / " in row.hw:
-        parts = row.hw.split(" / ")
-        shaman_i = parts[0].strip() if len(parts) > 0 else None
-        shaman_ii = parts[1].strip() if len(parts) > 1 else None
-
     return RunDetail(
-        id=row.id, name=row.name, model=row.model,
-        hw=row.hw, duration=row.duration, status=row.status,
-        shamanIProcessor=shaman_i, shamanIIProcessor=shaman_ii,
+        id=row.id, name=row.name,
+        duration=row.duration, status=row.status,
+        shamanIProcessor=row.shamani, shamanIIProcessor=row.shamanii,
         metrics=metrics,
     )
 
@@ -156,8 +138,8 @@ def get_dashboard(run_id: int, db: Session = Depends(get_db)):
     return {
         "run": {
             "id": row.id, "name": row.name, "date": str(row.date),
-            "scenario": row.scenario, "model": row.model,
-            "hw": row.hw, "duration": row.duration, "status": row.status,
+            "scenario": row.scenario,
+            "shamani": row.shamani, "shamanii": row.shamanii, "duration": row.duration, "status": row.status,
         },
         "metrics": {
             "accuracy":        m.accuracy        if m else None,
@@ -186,33 +168,13 @@ def get_dashboard(run_id: int, db: Session = Depends(get_db)):
 
 @router.post("/create", response_model=CreateRunResponse)
 def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
-    """
-    Create a new simulation run with topology and mock metrics.
-    
-    Accepts:
-    - name: Run name
-    - scenario: Simulation scenario 
-    - model: AI model used
-    - hw: Hardware spec
-    - duration: Expected run duration
-    - nodes: List of node definitions {id, label, role, x, y}
-    - edges: List of edge definitions {from, to}
-    - mediaFiles: Dict mapping node IDs to file paths
-    - shamanConfig: Global Shaman configuration
-    
-    Returns:
-    - id: Database run ID
-    - name: Run name
-    - created_at: ISO timestamp
-    """
-    
     # Create run record
     run = RunRow(
         name=req.name,
         date=date.today(),
         scenario=req.scenario,
-        model=req.model,
-        hw=req.hw,
+        shamani=req.shamani,
+        shamanii=req.shamanii,
         duration=req.duration,
         status=req.status or "pass",
     )

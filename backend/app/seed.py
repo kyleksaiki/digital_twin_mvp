@@ -12,8 +12,6 @@ from app.db_models import (
     NodeChildRow, NetworkEdgeRow, RerouteEventRow,
 )
 
-# ── helpers ──────────────────────────────────────────────────────────────────
-
 def _metrics_for_status(status: str) -> dict:
     base = {
         "accuracy": 94.2, "fpr": 6.8, "latency_ms": 48,
@@ -76,7 +74,6 @@ def _acc_curve(status: str) -> list[dict]:
     return rows
 
 
-# ── raw mock node data (mirrors mock_data.py exactly) ────────────────────────
 
 RAW_NODES = [
     dict(node_id="CMD", label="Command Center", role="command", pos_x=0.50, pos_y=0.10,
@@ -188,22 +185,18 @@ RAW_REROUTES = [
     dict(from_node="S11", to_node="R3"),
 ]
 
-# Raw run data (mirrors MOCK_RUNS)
 RAW_RUNS = [
-    dict(id=1,  name="Forest_Night_01",    date="2025-02-17", scenario="Tropical Night",  model="BirdNET v2.4", hw="Radxa Zero", duration="24h", status="pass"),
-    dict(id=2,  name="Forest_Dawn_03",     date="2025-02-16", scenario="Dawn Chorus",     model="BirdNET v2.3", hw="ESP32",      duration="12h", status="warning"),
-    dict(id=3,  name="Urban_Park_07",      date="2025-02-15", scenario="Urban Noise",     model="BirdNET v2.4", hw="Radxa Zero", duration="8h",  status="pass"),
-    dict(id=4,  name="Wetland_Rain_02",    date="2025-02-14", scenario="Wetland Rain",    model="BirdNET v2.3", hw="ESP32",      duration="24h", status="fail"),
-    dict(id=5,  name="Mountain_Clear_05",  date="2025-02-13", scenario="Mountain Clear",  model="BirdNET v2.4", hw="Radxa Zero", duration="16h", status="pass"),
-    dict(id=6,  name="Forest_Storm_04",    date="2025-02-12", scenario="Storm Event",     model="BirdNET v2.2", hw="ESP32",      duration="6h",  status="warning"),
-    dict(id=7,  name="Coastal_Night_01",   date="2025-02-11", scenario="Coastal Night",   model="BirdNET v2.4", hw="Radxa Zero", duration="24h", status="pass"),
-    dict(id=8,  name="Desert_Day_02",      date="2025-02-10", scenario="Desert Sparse",   model="BirdNET v2.3", hw="ESP32",      duration="12h", status="pass"),
-    dict(id=9,  name="Jungle_Dense_06",    date="2025-02-09", scenario="Dense Canopy",    model="BirdNET v2.4", hw="Radxa Zero", duration="24h", status="warning"),
-    dict(id=10, name="River_Valley_03",    date="2025-02-08", scenario="River Valley",    model="BirdNET v2.2", hw="ESP32",      duration="8h",  status="pass"),
+    dict(id=1,  name="Forest_Night_01",    date="2025-02-17", scenario="Tropical Night",  shamani="Radxa Zero", shamanii="Radxa Zero", duration="24h", status="pass"),
+    dict(id=2,  name="Forest_Dawn_03",     date="2025-02-16", scenario="Dawn Chorus",     shamani="ESP32",      shamanii="Radxa Zero", duration="12h", status="warning"),
+    dict(id=3,  name="Urban_Park_07",      date="2025-02-15", scenario="Urban Noise",     shamani="Radxa Zero", shamanii="Radxa Zero", duration="8h",  status="pass"),
+    dict(id=4,  name="Wetland_Rain_02",    date="2025-02-14", scenario="Wetland Rain",    shamani="ESP32",      shamanii="Radxa Zero", duration="24h", status="fail"),
+    dict(id=5,  name="Mountain_Clear_05",  date="2025-02-13", scenario="Mountain Clear",  shamani="Radxa Zero", shamanii="Radxa Zero", duration="16h", status="pass"),
+    dict(id=6,  name="Forest_Storm_04",    date="2025-02-12", scenario="Storm Event",     shamani="ESP32",      shamanii="Radxa Zero", duration="6h",  status="warning"),
+    dict(id=7,  name="Coastal_Night_01",   date="2025-02-11", scenario="Coastal Night",   shamani="Radxa Zero", shamanii="Radxa Zero", duration="24h", status="pass"),
+    dict(id=8,  name="Desert_Day_02",      date="2025-02-10", scenario="Desert Sparse",   shamani="ESP32",      shamanii="Radxa Zero", duration="12h", status="pass"),
+    dict(id=9,  name="Jungle_Dense_06",    date="2025-02-09", scenario="Dense Canopy",    shamani="Radxa Zero", shamanii="Radxa Zero", duration="24h", status="warning"),
+    dict(id=10, name="River_Valley_03",    date="2025-02-08", scenario="River Valley",    shamani="ESP32",      shamanii="Radxa Zero", duration="8h",  status="pass"),
 ]
-
-
-# ── seed function ─────────────────────────────────────────────────────────────
 
 def seed():
     init_db()
@@ -213,15 +206,13 @@ def seed():
         if db.query(RunRow).count() > 0:
             print("DB already seeded — skipping.")
             return
-
+        
         for r in RAW_RUNS:
             run_date = r["date"]
             if isinstance(run_date, str):
                 run_date = Date.fromisoformat(run_date)
             run = RunRow(
-                id=r["id"], name=r["name"], date=run_date,
-                scenario=r["scenario"], model=r["model"],
-                hw=r["hw"], duration=r["duration"], status=r["status"],
+                id=r["id"], name=r["name"], date=run_date, scenario=r["scenario"], shamani=r["shamani"], shamanii=r["shamanii"], duration=r["duration"], status=r["status"],
             )
             db.add(run)
             db.flush()  # get run.id

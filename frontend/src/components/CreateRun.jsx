@@ -30,7 +30,7 @@ function ComponentPowerModel(batteryLife, components) {
     working: new CVP(),
     transmit: new CVP(),
     receive: new CVP(),
-    cameraImage: new CVP(),
+    cameraImage: new CVP(),a
     cameraSleep: new CVP(),
     micListen: new CVP(),
     micSleep: new CVP(),
@@ -58,7 +58,6 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   const [isLoading, setIsLoading] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
   const [runName, setRunName] = useState(null);
-  const [runAIModel, setRunAIModel] = useState(null);
   const [runScenario, setRunScenario] = useState(null);
   const [runDuration, setRunDuration] = useState(null);
 
@@ -203,6 +202,27 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         : "#00e68a";
   }
 
+  /**
+   * Returns a consistent color per connection type:
+   *   Command–Shaman II  → blue   (#3b82f6)
+   *   Shaman II–Shaman II → red   (#ef4444)
+   *   Shaman II–Shaman I  → violet (#8b5cf6)
+   */
+  function connectionTypeColor(fromRole, toRole) {
+    if (
+      (fromRole === "command" && toRole === "relay") ||
+      (fromRole === "relay" && toRole === "command")
+    )
+      return "#3b82f6";
+    if (fromRole === "relay" && toRole === "relay") return "#ef4444";
+    if (
+      (fromRole === "relay" && toRole === "sensor") ||
+      (fromRole === "sensor" && toRole === "relay")
+    )
+      return "#8b5cf6";
+    return "#7a5dfb";
+  }
+
   function formatComponentLabel(name) {
     const map = {
       sleep: "Processor Sleep",
@@ -297,18 +317,12 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
-      ctx.strokeStyle = isValid ? "#7a5dfb" : "#ff4d6a";
+      ctx.strokeStyle = isValid
+        ? connectionTypeColor(from.role, to.role)
+        : "#ff4d6a";
       ctx.lineWidth = Math.max(2, 2.5 * s.zoom);
       ctx.lineCap = "round";
       ctx.stroke();
-
-      // Draw connection indicator
-      const midX = (x1 + x2) / 2;
-      const midY = (y1 + y2) / 2;
-      ctx.beginPath();
-      ctx.arc(midX, midY, 4 * s.zoom, 0, Math.PI * 2);
-      ctx.fillStyle = isValid ? "rgba(0, 230, 138, 0.9)" : "rgba(255, 77, 106, 0.95)";
-      ctx.fill();
     });
 
     // Draw preview connection line if connecting
@@ -676,8 +690,6 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     const runData = {
       name: runName || `Run-${new Date().toISOString().split("T")[0]}-${Date.now() % 10000}`,
       scenario: runScenario || "Digital Twin Simulation",
-      model: runAIModel || "Auto-generated",
-      hw: `${shamanIProcessor} / ${shamanIIProcessor}`,
       shamanIProcessor,
       shamanIIProcessor,
       duration: runDuration || "24h",
@@ -864,6 +876,61 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
             ></polygon>
           </svg>
           <span> Shaman I (Sensor)</span>
+        </div>
+        <div
+          style={{
+            height: "1px",
+            background: "var(--border)",
+            margin: "8px 0 6px",
+          }}
+        ></div>
+        <div
+          style={{
+            fontSize: "9px",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            color: "var(--text-muted)",
+            marginBottom: "4px",
+          }}
+        >
+          Connections
+        </div>
+        <div className="legend-row">
+          <div
+            style={{
+              width: "20px",
+              height: "3px",
+              borderRadius: "2px",
+              background: "#3b82f6",
+              flexShrink: 0,
+            }}
+          ></div>
+          <span>Command–Shaman II</span>
+        </div>
+        <div className="legend-row">
+          <div
+            style={{
+              width: "20px",
+              height: "3px",
+              borderRadius: "2px",
+              background: "#ef4444",
+              flexShrink: 0,
+            }}
+          ></div>
+          <span>Shaman II–Shaman II</span>
+        </div>
+        <div className="legend-row">
+          <div
+            style={{
+              width: "20px",
+              height: "3px",
+              borderRadius: "2px",
+              background: "#8b5cf6",
+              flexShrink: 0,
+            }}
+          ></div>
+          <span>Shaman II–Shaman I</span>
         </div>
         <div
           style={{
@@ -1336,17 +1403,6 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                       value={runScenario}
                       onChange={(e) =>
                         setRunScenario(e.target.value)
-                      }
-                    />
-                  </div>
-                  
-                  <div className="scp-input-group">
-                    <label className="scp-label">AI Model:</label>
-                    <input
-                      className="scp-input"
-                      value={runAIModel}
-                      onChange={(e) =>
-                        setRunAIModel(e.target.value)
                       }
                     />
                   </div>

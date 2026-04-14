@@ -10,7 +10,6 @@ CREATE TABLE runs (
     name        VARCHAR(100)    NOT NULL,
     date        DATE            NOT NULL,
     scenario    VARCHAR(100)    NOT NULL,
-    model       VARCHAR(100)    NOT NULL,
     hw          VARCHAR(50)     NOT NULL,
     duration    VARCHAR(20)     NOT NULL,
     status      ENUM('pass','warning','fail') NOT NULL,

@@ -220,6 +220,33 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     return `rgba(${c.r},${c.g},${c.b},${a})`;
   }
 
+  /**
+   * Returns an HSL color for a link based on connection type and congestion.
+   * Each connection type gets its own hue; lightness varies with traffic:
+   *   congestion 0  → lightness 68% (light / low traffic)
+   *   congestion 100 → lightness 28% (dark / high traffic)
+   *
+   *   Command–Shaman II    → hsl(215, …)  blue
+   *   Shaman II–Shaman II  → hsl(0,   …)  red
+   *   Shaman II–Shaman I   → hsl(263, …)  violet
+   */
+  function connectionTypeColorNetMap(fromRole, toRole, congestion) {
+    const lightness = Math.round(68 - (congestion / 100) * 40);
+    if (
+      (fromRole === "command" && toRole === "relay") ||
+      (fromRole === "relay" && toRole === "command")
+    )
+      return `hsl(215,90%,${lightness}%)`;
+    if (fromRole === "relay" && toRole === "relay")
+      return `hsl(0,82%,${lightness}%)`;
+    if (
+      (fromRole === "relay" && toRole === "sensor") ||
+      (fromRole === "sensor" && toRole === "relay")
+    )
+      return `hsl(263,70%,${lightness}%)`;
+    return `hsl(255,70%,${lightness}%)`;
+  }
+
   function drawMap() {
     const s = stateRef.current;
     s.time += 0.016;
@@ -343,14 +370,16 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
         x2 = nx(t),
         y2 = ny(t);
       const wgt = Math.max(1.5, (e.congestion / 100) * 7 * s.zoom);
-      const c = congColor(e.congestion);
+      // Use connection-type hue with congestion-driven lightness
+      const edgeCol = connectionTypeColorNetMap(f.role, t.role, e.congestion);
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
-      ctx.strokeStyle = rgb(c, 0.95);
+      ctx.strokeStyle = edgeCol;
       ctx.lineWidth = Math.max(1.5, wgt + 2);
       ctx.lineCap = "round";
       ctx.stroke();
+      // Animated packet dots travel along the edge
       const pc = Math.ceil(e.congestion / 25);
       for (let i = 0; i < pc; i++) {
         const p = (s.time * 0.3 + i / pc) % 1;
@@ -362,7 +391,7 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
           0,
           Math.PI * 2,
         );
-        ctx.fillStyle = rgb(c, 0.6);
+        ctx.fillStyle = edgeCol;
         ctx.fill();
       }
     });

@@ -201,9 +201,6 @@ export default function Overview({ run }) {
     <div id="pageOverview" style={{ overflowY: 'auto', padding: 24 }}>
       <div className="run-meta-card">
         <span className="run-meta-label">Loaded Run: {runData.name}</span>
-        <span className="run-chip chip-model">{runData.model || '—'}</span>
-        <span className="run-chip chip-hw">{runData.hw || '—'}</span>
-        <span className="run-chip chip-dur">{runData.duration || '—'}</span>
         <span className={`run-chip ${statusChipClass}`}>{runData.status ? runData.status.toUpperCase() : '—'}</span>
       </div>
 
