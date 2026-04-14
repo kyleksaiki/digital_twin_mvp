@@ -798,17 +798,24 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
             </svg>
             <span> Shaman I (Sensor)</span>
           </div>
-          <div className="legend-row">
-            <div className="legend-line" style={{background:'var(--green)'}}></div>
-            <span>Low congestion</span>
+          <div style={{height:'1px',background:'var(--border)',margin:'8px 0 6px'}}></div>
+          <div style={{fontSize:'9px',fontWeight:700,textTransform:'uppercase',letterSpacing:'0.5px',color:'var(--text-muted)',marginBottom:'4px'}}>
+            Connections
           </div>
           <div className="legend-row">
-            <div className="legend-line" style={{background:'var(--amber)'}}></div>
-            <span>Medium</span>
+            <div className="legend-line" style={{background:'hsl(215,90%,60%)'}}></div>
+            <span>Command–Shaman II</span>
           </div>
           <div className="legend-row">
-            <div className="legend-line" style={{background:'var(--red)'}}></div>
-            <span>High congestion</span>
+            <div className="legend-line" style={{background:'hsl(0,82%,55%)'}}></div>
+            <span>Shaman II–Shaman II</span>
+          </div>
+          <div className="legend-row">
+            <div className="legend-line" style={{background:'hsl(263,70%,60%)'}}></div>
+            <span>Shaman II–Shaman I</span>
+          </div>
+          <div style={{fontSize:'9px',color:'var(--text-muted)',marginTop:'6px'}}>
+            Lighter = low traffic · Darker = high
           </div>
         </div>
       )}

@@ -30,7 +30,7 @@ function ComponentPowerModel(batteryLife, components) {
     working: new CVP(),
     transmit: new CVP(),
     receive: new CVP(),
-    cameraImage: new CVP(),a
+    cameraImage: new CVP(),
     cameraSleep: new CVP(),
     micListen: new CVP(),
     micSleep: new CVP(),
