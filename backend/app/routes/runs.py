@@ -28,6 +28,9 @@ class CreateRunRequest(BaseModel):
     edges: List[Dict[str, Any]]
     mediaFiles: Optional[Dict[str, str]] = {}
     shamanConfig: Optional[Dict[str, Any]] = {}
+    calibrationData: Optional[Dict[str, Any]] = None
+    shamanIConfig: Optional[Dict[str, Any]] = None
+    shamanIIConfig: Optional[Dict[str, Any]] = None
 
 
 class CreateRunResponse(BaseModel):
@@ -177,6 +180,7 @@ def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
         shamanii=req.shamanii,
         duration=req.duration,
         status=req.status or "pass",
+        calibration_data=req.calibrationData,
     )
     db.add(run)
     db.flush()  # Get the run ID
@@ -208,6 +212,8 @@ def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
             role=node["role"],
             pos_x=node.get("x", 0.5),
             pos_y=node.get("y", 0.5),
+            lat=node.get("lat"),
+            lon=node.get("lon"),
             **mock_data,
         )
         db.add(db_node)
@@ -284,6 +290,8 @@ def get_netmap(run_id: int, db: Session = Depends(get_db)):
             "role": n.role,
             "x": n.pos_x,
             "y": n.pos_y,
+            "lat": n.lat,
+            "lon": n.lon,
             "battery": n.battery,
             "drain": n.drain,
             "traffic": n.traffic,
@@ -316,4 +324,9 @@ def get_netmap(run_id: int, db: Session = Depends(get_db)):
 
     reroutes = [{"from": r.from_node, "to": r.to_node} for r in row.reroutes]
 
-    return {"nodes": nodes, "edges": edges, "reroutes": reroutes}
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "reroutes": reroutes,
+        "calibrationData": row.calibration_data,
+    }

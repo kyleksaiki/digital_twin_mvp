@@ -10,9 +10,12 @@ CREATE TABLE runs (
     name        VARCHAR(100)    NOT NULL,
     date        DATE            NOT NULL,
     scenario    VARCHAR(100)    NOT NULL,
-    hw          VARCHAR(50)     NOT NULL,
-    duration    VARCHAR(20)     NOT NULL,
+    shamani_processor    VARCHAR(50)     NOT NULL,
+    shamanii_processor   VARCHAR(50)     NOT NULL,
+    duration    INT             NOT NULL,   -- duration in hours
     status      ENUM('pass','warning','fail') NOT NULL,
+    -- Calibration data: maps image coordinates to real-world lat/lon
+    calibration_data JSON           DEFAULT NULL,   -- {refPoints: [{x, y, lat, lon}, ...]}
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

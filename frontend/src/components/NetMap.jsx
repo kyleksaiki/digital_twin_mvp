@@ -661,7 +661,7 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     p.innerHTML = `
       <div class="dp-header">
         <div>
-          <div class="dp-title" style="color:${c}">${n.id} — ${(n.label || "").replace("\\n", " ")}</div>
+          <div class="dp-title" style="color:${c}">${n.id}</div>
           <div class="dp-subtitle">${roleLabel}</div>
         </div>
         <div class="dp-close" onclick="document.getElementById('app').classList.remove('panel-open')">✕</div>
@@ -675,11 +675,16 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
       </div>
       <div class="dp-section">
         <div class="dp-section-title">Network</div>
-        <div class="dp-row"><span class="dp-row-l">Traffic</span><span class="dp-row-v">${n.traffic}%</span></div>
-        <div class="dp-row"><span class="dp-row-l">Packets In</span><span class="dp-row-v">${(n.packetsIn || 0).toLocaleString()}</span></div>
+        ${n.role === "sensor" ? `
         <div class="dp-row"><span class="dp-row-l">Packets Out</span><span class="dp-row-v">${(n.packetsOut || 0).toLocaleString()}</span></div>
         <div class="dp-row"><span class="dp-row-l">Retries</span><span class="dp-row-v">${n.retries}</span></div>
-        <div class="dp-row"><span class="dp-row-l">Collisions</span><span class="dp-row-v">${n.collisions}</span></div>
+        ` : n.role === "relay" ? `
+        <div class="dp-row"><span class="dp-row-l">Packets Out</span><span class="dp-row-v">${(n.packetsOut || 0).toLocaleString()}</span></div>
+        <div class="dp-row"><span class="dp-row-l">Retries</span><span class="dp-row-v">${n.retries}</span></div>
+        ` : `
+        <div class="dp-row"><span class="dp-row-l">Packets Out</span><span class="dp-row-v">${(n.packetsOut || 0).toLocaleString()}</span></div>
+        <div class="dp-row"><span class="dp-row-l">Retries</span><span class="dp-row-v">${n.retries}</span></div>
+        `}
       </div>
       <div class="dp-section">
         <div class="dp-section-title">AI Detections</div>
@@ -747,14 +752,10 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
                   </span>
                   <span className={`ov-val ${getColorClass(overview.congestionScore, 'congestion')}`}>{overview.congestionScore}/100</span>
                 </div>
-                <div className="ov-row">
-                  <span className="ov-label">Avg Latency</span>
-                  <span className={`ov-val ${getColorClass(overview.avgLatency, 'latency')}`}>{overview.avgLatency}ms</span>
-                </div>
-                <div className="ov-row">
-                  <span className="ov-label">Packet Loss</span>
-                  <span className={`ov-val ${getColorClass(overview.packetLoss, 'packetloss')}`}>{overview.packetLoss}%</span>
-                </div>
+                 <div className="ov-row">
+                   <span className="ov-label">Avg Latency</span>
+                   <span className={`ov-val ${getColorClass(overview.avgLatency, 'latency')}`}>{overview.avgLatency}ms</span>
+                 </div>
                 <div className="ov-row">
                   <span className="ov-label">Active Nodes</span>
                   <span className="ov-val good">{overview.activeNodes} / {overview.activeNodes}</span>

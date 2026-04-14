@@ -1,5 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRun } from "../api";
+import {
+  validateCalibration,
+  screenToReal,
+  realToScreen,
+  formatCoordinate,
+  parseCoordinate,
+} from "../utils/coordinates";
 
 /**
  * CreateRun - Interactive topology design canvas for creating new simulation runs
@@ -11,6 +18,7 @@ import { createRun } from "../api";
  * - Pan, zoom, and navigation controls
  * - Shaman configuration panel
  * - Connection validation rules
+ * - Calibration system for real-world coordinates
  *
  * Props:
  *   onNavigate: (page: string) => void - called to navigate to other pages
@@ -23,9 +31,14 @@ function CVP(current, voltage, power) {
   this.power = power || null;
 }
 
-function ComponentPowerModel(batteryLife, components) {
+function ComponentPowerModel(batteryLife, components, isShamanII = false) {
   this.batteryLife = batteryLife;
-  this.components = components || {
+  this.components = components || (isShamanII ? {
+    sleep: new CVP(),
+    working: new CVP(),
+    transmit: new CVP(),
+    receive: new CVP(),
+  } : {
     sleep: new CVP(),
     working: new CVP(),
     transmit: new CVP(),
@@ -34,7 +47,7 @@ function ComponentPowerModel(batteryLife, components) {
     cameraSleep: new CVP(),
     micListen: new CVP(),
     micSleep: new CVP(),
-  };
+  });
 }
 export default function CreateRun({ onNavigate, onRunCreated }) {
   const canvasRef = useRef(null);
@@ -45,10 +58,10 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [shamanIConfig, setShamanIConfig] = useState(
-    new ComponentPowerModel(30),
+    new ComponentPowerModel(30, undefined, false),
   );
   const [shamanIIConfig, setShamanIIConfig] = useState(
-    new ComponentPowerModel(),
+    new ComponentPowerModel(undefined, undefined, true),
   );
   const [shamanIProcessor, setShamanIProcessor] = useState("ESP32");
   const [shamanIIProcessor, setShamanIIProcessor] = useState("Radxa Zero");
@@ -1398,23 +1411,33 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                   </div>
                   <div className="scp-input-group">
                     <label className="scp-label">Scenario:</label>
-                    <input
+                    <select
                       className="scp-input"
-                      value={runScenario}
+                      value={runScenario || ""}
                       onChange={(e) =>
                         setRunScenario(e.target.value)
                       }
-                    />
+                    >
+                      <option value="">Select scenario...</option>
+                      <option value="Poacher Detection">Poacher Detection</option>
+                      <option value="Wildlife Monitoring">Wildlife Monitoring</option>
+                      <option value="Perimeter Security">Perimeter Security</option>
+                      <option value="Custom">Custom</option>
+                    </select>
                   </div>
 
                   <div className="scp-input-group">
-                    <label className="scp-label">Duration:</label>
+                    <label className="scp-label">Duration (Hours):</label>
                     <input
+                      type="number"
                       className="scp-input"
-                      value={runDuration}
+                      value={runDuration || ""}
                       onChange={(e) =>
                         setRunDuration(e.target.value)
                       }
+                      min="1"
+                      max="168"
+                      placeholder="Hours (1-168)"
                     />
                   </div>
                 </div>

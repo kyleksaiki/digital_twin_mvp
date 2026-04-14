@@ -4,7 +4,7 @@ Drop-in alongside existing models.py (Pydantic) without touching it.
 """
 from sqlalchemy import (
     Column, Integer, String, Float, Date, Enum, BigInteger,
-    ForeignKey, UniqueConstraint, Index, TIMESTAMP, func,
+    ForeignKey, UniqueConstraint, Index, TIMESTAMP, func, JSON,
 )
 from sqlalchemy.orm import relationship, declarative_base
 
@@ -23,6 +23,7 @@ class RunRow(Base):
     duration   = Column(String(20), nullable=False)
     status     = Column(Enum("pass", "warning", "fail"), nullable=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
+    calibration_data = Column(JSON, nullable=True)
 
     # Relationships
     metrics            = relationship("RunMetricsRow",            back_populates="run", uselist=False, cascade="all, delete-orphan")
@@ -99,6 +100,8 @@ class NetworkNodeRow(Base):
     role            = Column(Enum("command", "relay", "sensor"), nullable=False)
     pos_x           = Column(Float, nullable=False)
     pos_y           = Column(Float, nullable=False)
+    lat             = Column(Float, nullable=True)
+    lon             = Column(Float, nullable=True)
     battery         = Column(Integer, nullable=False)
     drain           = Column(Float, nullable=False)
     traffic         = Column(Integer, nullable=False)
