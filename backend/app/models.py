@@ -22,7 +22,7 @@ class RunDetail(BaseModel):
     name: str
     model: str
     shamanIProcessor:str
-    shamanIIProcessor: st
+    shamanIIProcessor: str
     duration: str
     status: str
     metrics: Dict[str, Any]
