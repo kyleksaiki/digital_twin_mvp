@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, date
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
+import re
 from app.models import Run, RunDetail
 from app.database import get_db
 from app.db_models import (
@@ -19,10 +20,12 @@ router = APIRouter(prefix="/api/runs", tags=["runs"])
 class CreateRunRequest(BaseModel):
     """Request body for creating a new run."""
     name: str
-    scenario: str
-    shamani: str
-    shamanii: str
-    duration: str
+    scenario: Optional[str] = "MVP Simulation"
+    shamani: Optional[str] = None
+    shamanii: Optional[str] = None
+    shamanIProcessor: Optional[str] = None
+    shamanIIProcessor: Optional[str] = None
+    duration: Optional[str] = "24h"
     status: Optional[str] = "pass"
     nodes: List[Dict[str, Any]]
     edges: List[Dict[str, Any]]
@@ -69,6 +72,26 @@ def _generate_mock_edge_data() -> Dict[str, Any]:
         "reroutes": random.randint(0, 3),
         "latency": random.randint(5, 200),
     }
+
+
+def _detections_from_events(events: List[str]) -> List[Dict[str, Any]]:
+    counts: Dict[str, int] = {}
+    for event_text in events:
+        match = re.search(r"(\d+)\s+([A-Za-z][A-Za-z\s_-]*)", str(event_text or ""))
+        if not match:
+            continue
+
+        count = int(match.group(1))
+        label = match.group(2).strip().replace("_", " ").replace("-", " ").title()
+        counts[label] = counts.get(label, 0) + count
+
+    if "Gunshot" not in counts:
+        counts["Gunshot"] = 0
+
+    return [
+        {"label": label, "count": value}
+        for label, value in sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
+    ]
 
 
 def _row_to_run(row: RunRow) -> Run:
@@ -171,14 +194,19 @@ def get_dashboard(run_id: int, db: Session = Depends(get_db)):
 
 @router.post("/create", response_model=CreateRunResponse)
 def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
+    scenario = req.scenario or "MVP Simulation"
+    shamani = req.shamani or req.shamanIProcessor or "ESP32"
+    shamanii = req.shamanii or req.shamanIIProcessor or "Radxa Zero"
+    duration = req.duration or "24h"
+
     # Create run record
     run = RunRow(
         name=req.name,
         date=date.today(),
-        scenario=req.scenario,
-        shamani=req.shamani,
-        shamanii=req.shamanii,
-        duration=req.duration,
+        scenario=scenario,
+        shamani=shamani,
+        shamanii=shamanii,
+        duration=duration,
         status=req.status or "pass",
         calibration_data=req.calibrationData,
     )
@@ -201,10 +229,21 @@ def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
         conf_threshold=round(random.uniform(0.5, 0.9), 2),
     )
     db.add(metrics)
+
+    role_by_node_id = {
+        str(node.get("id")): str(node.get("role"))
+        for node in req.nodes
+        if node.get("id") and node.get("role")
+    }
+
+    parent_by_sensor: Dict[str, str] = {}
+    node_child_pairs = set()
     
     # Create network nodes with mock data
     for node in req.nodes:
         mock_data = _generate_mock_node_data(node["role"])
+        real_x = node.get("realX")
+        real_y = node.get("realY")
         db_node = NetworkNodeRow(
             run_id=run.id,
             node_id=node["id"],
@@ -212,25 +251,65 @@ def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
             role=node["role"],
             pos_x=node.get("x", 0.5),
             pos_y=node.get("y", 0.5),
-            lat=node.get("lat"),
-            lon=node.get("lon"),
+            lat=node.get("lat", real_x),
+            lon=node.get("lon", real_y),
             **mock_data,
         )
         db.add(db_node)
+
+        if node.get("role") == "sensor":
+            sensor_categories = ["bird", "gunshot", "chainsaw", "howler monkey"]
+            sampled = random.sample(sensor_categories, k=min(2, len(sensor_categories)))
+            for category in sampled:
+                event_count = random.randint(1, 8)
+                db.add(
+                    NodeEventRow(
+                        run_id=run.id,
+                        node_id=node["id"],
+                        event_text=f"{event_count} {category}",
+                    )
+                )
     
     # Create network edges with mock data
     for edge in req.edges:
+        from_node = edge["from"]
+        to_node = edge["to"]
         mock_data = _generate_mock_edge_data()
         db_edge = NetworkEdgeRow(
             run_id=run.id,
-            from_node=edge["from"],
-            to_node=edge["to"],
+            from_node=from_node,
+            to_node=to_node,
             **mock_data,
         )
         db.add(db_edge)
+
+        from_role = role_by_node_id.get(str(from_node))
+        to_role = role_by_node_id.get(str(to_node))
+
+        if from_role == "relay" and to_role == "sensor":
+            node_child_pairs.add((from_node, to_node))
+            parent_by_sensor[to_node] = from_node
+        elif from_role == "sensor" and to_role == "relay":
+            node_child_pairs.add((to_node, from_node))
+            parent_by_sensor[from_node] = to_node
+
+    for parent_node_id, child_node_id in node_child_pairs:
+        db.add(
+            NodeChildRow(
+                run_id=run.id,
+                parent_node_id=parent_node_id,
+                child_node_id=child_node_id,
+            )
+        )
+
+    for sensor_node_id, parent_node_id in parent_by_sensor.items():
+        db.query(NetworkNodeRow).filter(
+            NetworkNodeRow.run_id == run.id,
+            NetworkNodeRow.node_id == sensor_node_id,
+        ).update({"parent_node_id": parent_node_id})
     
     # Create sample detection events
-    event_types = ["intrusion", "anomaly", "threshold_breach", "device_offline"]
+    event_types = ["Bird", "Gunshot", "Chainsaw", "Howler Monkey", "Vehicle"]
     for i in range(min(5, len(req.nodes))):
         for _ in range(random.randint(1, 3)):
             det = DetectionByTypeRow(
@@ -282,8 +361,17 @@ def get_netmap(run_id: int, db: Session = Depends(get_db)):
     if not row:
         return {"nodes": [], "edges": [], "reroutes": []}
 
+    events_by_node: Dict[str, List[str]] = {}
+    for event in row.node_events:
+        events_by_node.setdefault(event.node_id, []).append(event.event_text)
+
+    children_by_node: Dict[str, List[str]] = {}
+    for child in row.node_children:
+        children_by_node.setdefault(child.parent_node_id, []).append(child.child_node_id)
+
     nodes = []
     for n in row.nodes:
+        node_events = events_by_node.get(n.node_id, [])
         nodes.append({
             "id": n.node_id,
             "label": n.label,
@@ -292,6 +380,8 @@ def get_netmap(run_id: int, db: Session = Depends(get_db)):
             "y": n.pos_y,
             "lat": n.lat,
             "lon": n.lon,
+            "realX": n.lat,
+            "realY": n.lon,
             "battery": n.battery,
             "drain": n.drain,
             "traffic": n.traffic,
@@ -301,6 +391,10 @@ def get_netmap(run_id: int, db: Session = Depends(get_db)):
             "retries": n.retries,
             "collisions": n.collisions,
             "aiDet": n.ai_det,
+            "events": node_events,
+            "children": children_by_node.get(n.node_id, []),
+            "parent": n.parent_node_id,
+            "detectionByType": _detections_from_events(node_events),
             "powerBreakdown": {
                 "radio": n.power_radio,
                 "processor": n.power_processor,

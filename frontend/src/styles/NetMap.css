@@ -197,3 +197,37 @@
     font-family: var(--font-mono);
     color: var(--text-secondary);
 }
+
+.battery-modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.battery-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 10px;
+}
+
+.battery-metric-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.battery-metric-label {
+    color: var(--text-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 6px;
+}
+
+.battery-metric-value {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 700;
+}

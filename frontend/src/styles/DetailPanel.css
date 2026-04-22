@@ -92,6 +92,22 @@
     font-weight: 500;
 }
 
+.dp-battery-btn {
+    background: rgba(59,130,246,0.18);
+    border: 1px solid rgba(59,130,246,0.4);
+    border-radius: 999px;
+    color: #93c5fd;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    padding: 4px 10px;
+    cursor: pointer;
+}
+
+.dp-battery-btn:hover {
+    background: rgba(59,130,246,0.28);
+}
+
 .dp-bar-row {
     display: flex;
     align-items: center;
@@ -126,6 +142,50 @@
     color: var(--text-secondary);
     width: 34px;
     text-align: right;
+}
+
+.dp-ai-chart {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.dp-ai-row {
+    display: grid;
+    grid-template-columns: minmax(64px, 42%) 1fr auto;
+    align-items: center;
+    gap: 8px;
+}
+
+.dp-ai-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dp-ai-track {
+    height: 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+.dp-ai-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ef4444, #f97316);
+    border-radius: inherit;
+}
+
+.dp-ai-value {
+    min-width: 26px;
+    text-align: right;
+    font-size: 10px;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
 }
 
 .dp-mini-chart {

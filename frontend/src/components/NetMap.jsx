@@ -1,5 +1,80 @@
 import React, { useEffect, useRef } from "react";
 import { fetchNetmap } from "../api";
+import Modal from "./common/Modal";
+import { LineTrendChart } from "./common/SimpleCharts";
+
+function parseDurationHours(duration) {
+  if (typeof duration === "number" && Number.isFinite(duration)) {
+    return Math.max(1, duration);
+  }
+
+  const match = String(duration || "").match(/(\d+(?:\.\d+)?)/);
+  if (!match) return 24;
+  return Math.max(1, Number(match[1]));
+}
+
+function buildBatteryTelemetry(node, durationHours) {
+  const drainPerHour = Math.max(0.01, Number(node?.drain) || 0.01);
+  const finalBattery = Math.max(0, Math.min(100, Number(node?.battery) || 0));
+  const estimatedStartBattery = Math.min(100, finalBattery + drainPerHour * durationHours);
+  const samples = Math.max(12, Math.min(72, Math.round(durationHours * 2)));
+
+  const points = [];
+  for (let i = 0; i <= samples; i++) {
+    const hour = (durationHours * i) / samples;
+    points.push({
+      x: hour,
+      y: Math.max(0, estimatedStartBattery - drainPerHour * hour),
+    });
+  }
+
+  const estimatedBatteryDuration = estimatedStartBattery / drainPerHour;
+  const actualBatteryDuration = finalBattery <= 0
+    ? Math.min(durationHours, estimatedBatteryDuration)
+    : durationHours;
+
+  return {
+    points,
+    finalBattery,
+    estimatedBatteryDuration,
+    actualBatteryDuration,
+    durationHours,
+  };
+}
+
+function titleCase(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return "Unknown";
+  return text
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function parseDetectionFromEvents(events = []) {
+  const counts = new Map();
+
+  for (const rawEvent of events) {
+    const eventText = String(rawEvent || "").trim();
+    if (!eventText) continue;
+
+    const match = eventText.match(/(\d+)\s+([a-zA-Z][a-zA-Z\s_-]*)/);
+    if (!match) continue;
+
+    const count = Number(match[1]);
+    const label = titleCase(match[2]);
+    counts.set(label, (counts.get(label) || 0) + (Number.isFinite(count) ? count : 0));
+  }
+
+  if (!counts.has("Gunshot")) {
+    counts.set("Gunshot", 0);
+  }
+
+  return Array.from(counts.entries())
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+}
 
 /**
  * NetMap - Interactive network topology visualization on canvas
@@ -67,6 +142,10 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
   const mapImageRef = useRef(null);
   const [loading, setLoading] = React.useState(true);
   const [hasData, setHasData] = React.useState(false);
+  const [nodesSnapshot, setNodesSnapshot] = React.useState([]);
+  const [selectedNodeId, setSelectedNodeId] = React.useState(null);
+  const [isBatteryModalOpen, setIsBatteryModalOpen] = React.useState(false);
+  const [isBatteryModalExpanded, setIsBatteryModalExpanded] = React.useState(false);
   const stateRef = useRef({
     nodes: [],
     edges: [],
@@ -86,26 +165,45 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     panStartY: 0,
   });
   const rafRef = useRef(null);
+  const selectedNode = nodesSnapshot.find((node) => node.id === selectedNodeId) || null;
+  const runDurationHours = parseDurationHours(run?.duration);
+  const batteryTelemetry = selectedNode
+    ? buildBatteryTelemetry(selectedNode, runDurationHours)
+    : null;
 
   useEffect(() => {
     let mounted = true;
     setLoading(true);
+    setSelectedNodeId(null);
+    setIsBatteryModalOpen(false);
+    setIsBatteryModalExpanded(false);
+    setNodesSnapshot([]);
+    if (onPanelOpen) onPanelOpen(false);
+    document.getElementById("app")?.classList.remove("panel-open");
+
     fetchNetmap(run?.id)
       .then((d) => {
         if (!mounted) return;
-        stateRef.current.nodes = d.nodes || [];
-        stateRef.current.edges = d.edges || [];
-        stateRef.current.reroutes = d.reroutes || [];
-        if (onReroutes) onReroutes(d.reroutes || []);
-        setHasData((d.nodes || []).length > 0);
+        const nextNodes = d.nodes || [];
+        const nextEdges = d.edges || [];
+        const nextReroutes = d.reroutes || [];
+
+        stateRef.current.nodes = nextNodes;
+        stateRef.current.edges = nextEdges;
+        stateRef.current.reroutes = nextReroutes;
+        setNodesSnapshot(nextNodes);
+
+        if (onReroutes) onReroutes(nextReroutes);
+        setHasData(nextNodes.length > 0);
         setLoading(false);
-        if ((d.nodes || []).length > 0) {
+        if (nextNodes.length > 0) {
           startLoop();
         }
       })
       .catch(() => {
         if (mounted) {
           setHasData(false);
+          setNodesSnapshot([]);
           setLoading(false);
         }
       });
@@ -220,31 +318,17 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     return `rgba(${c.r},${c.g},${c.b},${a})`;
   }
 
-  /**
-   * Returns an HSL color for a link based on connection type and congestion.
-   * Each connection type gets its own hue; lightness varies with traffic:
-   *   congestion 0  → lightness 68% (light / low traffic)
-   *   congestion 100 → lightness 28% (dark / high traffic)
-   *
-   *   Command–Shaman II    → hsl(215, …)  blue
-   *   Shaman II–Shaman II  → hsl(0,   …)  red
-   *   Shaman II–Shaman I   → hsl(263, …)  violet
-   */
-  function connectionTypeColorNetMap(fromRole, toRole, congestion) {
-    const lightness = Math.round(68 - (congestion / 100) * 40);
-    if (
-      (fromRole === "command" && toRole === "relay") ||
-      (fromRole === "relay" && toRole === "command")
-    )
-      return `hsl(215,90%,${lightness}%)`;
-    if (fromRole === "relay" && toRole === "relay")
-      return `hsl(0,82%,${lightness}%)`;
+  function connectionTypeColorNetMap(fromRole, toRole) {
+    // Wi-Fi: Shaman II <-> Shaman I
     if (
       (fromRole === "relay" && toRole === "sensor") ||
       (fromRole === "sensor" && toRole === "relay")
-    )
-      return `hsl(263,70%,${lightness}%)`;
-    return `hsl(255,70%,${lightness}%)`;
+    ) {
+      return "#ef4444";
+    }
+
+    // LoRa backbone: Command <-> Shaman II and Shaman II <-> Shaman II
+    return "#3b82f6";
   }
 
   function drawMap() {
@@ -370,8 +454,8 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
         x2 = nx(t),
         y2 = ny(t);
       const wgt = Math.max(1.5, (e.congestion / 100) * 7 * s.zoom);
-      // Use connection-type hue with congestion-driven lightness
-      const edgeCol = connectionTypeColorNetMap(f.role, t.role, e.congestion);
+      // Link colors are standardized app-wide: blue LoRa, red Wi-Fi.
+      const edgeCol = connectionTypeColorNetMap(f.role, t.role);
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
@@ -575,7 +659,14 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
   }
   function onClick() {
     const s = stateRef.current;
-    if (s.hoveredNode) showNodePanel(s.hoveredNode);
+    if (s.hoveredNode) {
+      showNodePanel(s.hoveredNode);
+      return;
+    }
+
+    document.getElementById("app")?.classList.remove("panel-open");
+    setSelectedNodeId(null);
+    if (onPanelOpen) onPanelOpen(false);
   }
 
   function zoomIn() {
@@ -609,6 +700,33 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     if (type === 'latency') return value < 50 ? 'good' : value < 100 ? 'warn' : 'bad';
     if (type === 'packetloss') return parseFloat(value) < 2 ? 'good' : parseFloat(value) < 5 ? 'warn' : 'bad';
     return 'good';
+  }
+
+  function getDetectionChartData(node) {
+    const fromApi = Array.isArray(node?.detectionByType)
+      ? node.detectionByType
+          .map((item) => ({
+            label: titleCase(item.label ?? item.type ?? item.event_type),
+            value: Number(item.value ?? item.count) || 0,
+          }))
+          .filter((item) => item.label)
+      : [];
+
+    if (fromApi.length > 0) {
+      const map = new Map();
+      fromApi.forEach((item) => {
+        map.set(item.label, (map.get(item.label) || 0) + item.value);
+      });
+      if (!map.has("Gunshot")) {
+        map.set("Gunshot", 0);
+      }
+
+      return Array.from(map.entries())
+        .map(([label, value]) => ({ label, value }))
+        .sort((a, b) => b.value - a.value);
+    }
+
+    return parseDetectionFromEvents(node?.events || []);
   }
 
   function showTipForNode(n, mx, my) {
@@ -646,7 +764,11 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
   function showNodePanel(n) {
     const p = document.getElementById("detailPanel");
     if (!p) return;
-    document.getElementById("app").classList.add("panel-open");
+
+    setSelectedNodeId(n.id);
+    if (onPanelOpen) onPanelOpen(true);
+    document.getElementById("app")?.classList.add("panel-open");
+
     const c = nodeColor(n);
     const bc = n.battery > 60 ? "var(--green)" : n.battery > 30 ? "var(--amber)" : "var(--red)";
     const hc = n.health === "good" ? "var(--green)" : n.health === "warning" ? "var(--amber)" : "var(--red)";
@@ -657,6 +779,17 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     const pwProcPct = Math.round(((pw.processor || 0) / pwTotal) * 100);
     const pwMicPct = Math.round(((pw.mic || 0) / pwTotal) * 100);
     const events = n.events || [];
+    const detectionRows = getDetectionChartData(n);
+    const detectionMax = Math.max(...detectionRows.map((row) => row.value), 1);
+
+    const detectionChartHtml = detectionRows.length
+      ? detectionRows
+          .map((row) => {
+            const width = Math.max(4, (row.value / detectionMax) * 100);
+            return `<div class="dp-ai-row"><span class="dp-ai-label">${row.label}</span><div class="dp-ai-track"><div class="dp-ai-fill" style="width:${width}%"></div></div><span class="dp-ai-value">${row.value}</span></div>`;
+          })
+          .join("")
+      : `<div class="dp-row"><span class="dp-row-l">No detection categories</span></div>`;
 
     p.innerHTML = `
       <div class="dp-header">
@@ -664,31 +797,24 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
           <div class="dp-title" style="color:${c}">${n.id}</div>
           <div class="dp-subtitle">${roleLabel}</div>
         </div>
-        <div class="dp-close" onclick="document.getElementById('app').classList.remove('panel-open')">✕</div>
+        <div class="dp-close">✕</div>
       </div>
       <div class="dp-section">
         <div class="dp-section-title">Status</div>
         <div class="dp-row"><span class="dp-row-l">Health</span><span class="dp-row-v" style="color:${hc}">${(n.health || "").toUpperCase()}</span></div>
-        <div class="dp-row"><span class="dp-row-l">Battery</span><span class="dp-row-v" style="color:${bc}">${n.battery}%</span></div>
-        <div class="dp-bar-row"><span class="dp-bar-label">Battery</span><div class="dp-bar-track"><div class="dp-bar-fill" style="width:${n.battery}%;background:${bc}"></div></div><span class="dp-bar-value">${n.battery}%</span></div>
+        <div class="dp-row"><span class="dp-row-l">Final Battery</span><span class="dp-row-v" style="color:${bc}">${n.battery}%</span></div>
         <div class="dp-row"><span class="dp-row-l">Drain Rate</span><span class="dp-row-v">${n.drain}%/hr</span></div>
+        <div class="dp-row"><span class="dp-row-l">Battery</span><button class="dp-battery-btn" data-battery-node="${n.id}">Battery</button></div>
       </div>
       <div class="dp-section">
         <div class="dp-section-title">Network</div>
-        ${n.role === "sensor" ? `
         <div class="dp-row"><span class="dp-row-l">Packets Out</span><span class="dp-row-v">${(n.packetsOut || 0).toLocaleString()}</span></div>
         <div class="dp-row"><span class="dp-row-l">Retries</span><span class="dp-row-v">${n.retries}</span></div>
-        ` : n.role === "relay" ? `
-        <div class="dp-row"><span class="dp-row-l">Packets Out</span><span class="dp-row-v">${(n.packetsOut || 0).toLocaleString()}</span></div>
-        <div class="dp-row"><span class="dp-row-l">Retries</span><span class="dp-row-v">${n.retries}</span></div>
-        ` : `
-        <div class="dp-row"><span class="dp-row-l">Packets Out</span><span class="dp-row-v">${(n.packetsOut || 0).toLocaleString()}</span></div>
-        <div class="dp-row"><span class="dp-row-l">Retries</span><span class="dp-row-v">${n.retries}</span></div>
-        `}
       </div>
       <div class="dp-section">
         <div class="dp-section-title">AI Detections</div>
         <div class="dp-row"><span class="dp-row-l">Detections</span><span class="dp-row-v" style="color:var(--cyan)">${n.aiDet}</span></div>
+        ${n.role === "relay" ? `<div class="dp-ai-chart">${detectionChartHtml}</div>` : ""}
       </div>
       <div class="dp-section">
         <div class="dp-section-title">Power Breakdown</div>
@@ -702,6 +828,23 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
         ${events.map(ev => `<div class="dp-event"><div class="dp-event-dot" style="background:${c}"></div><span class="dp-event-text">${ev}</span></div>`).join("")}
       </div>` : ""}
     `;
+
+    const closeButton = p.querySelector(".dp-close");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        document.getElementById("app")?.classList.remove("panel-open");
+        setSelectedNodeId(null);
+        if (onPanelOpen) onPanelOpen(false);
+      });
+    }
+
+    const batteryButton = p.querySelector(".dp-battery-btn");
+    if (batteryButton) {
+      batteryButton.addEventListener("click", () => {
+        setIsBatteryModalExpanded(false);
+        setIsBatteryModalOpen(true);
+      });
+    }
   }
 
 
@@ -804,22 +947,50 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
             Connections
           </div>
           <div className="legend-row">
-            <div className="legend-line" style={{background:'hsl(215,90%,60%)'}}></div>
-            <span>Command–Shaman II</span>
+            <div className="legend-line" style={{background:'#3b82f6'}}></div>
+            <span>LoRa (Shaman II backbone)</span>
           </div>
           <div className="legend-row">
-            <div className="legend-line" style={{background:'hsl(0,82%,55%)'}}></div>
-            <span>Shaman II–Shaman II</span>
-          </div>
-          <div className="legend-row">
-            <div className="legend-line" style={{background:'hsl(263,70%,60%)'}}></div>
-            <span>Shaman II–Shaman I</span>
-          </div>
-          <div style={{fontSize:'9px',color:'var(--text-muted)',marginTop:'6px'}}>
-            Lighter = low traffic · Darker = high
+            <div className="legend-line" style={{background:'#ef4444'}}></div>
+            <span>Wi-Fi (Shaman II to Shaman I)</span>
           </div>
         </div>
       )}
+
+      <Modal
+        open={isBatteryModalOpen && !!batteryTelemetry}
+        title={selectedNode ? `${selectedNode.id} Battery` : "Battery"}
+        subtitle="Battery level from run start to run end"
+        expanded={isBatteryModalExpanded}
+        onToggleExpand={() => setIsBatteryModalExpanded((prev) => !prev)}
+        onClose={() => setIsBatteryModalOpen(false)}
+      >
+        {batteryTelemetry ? (
+          <div className="battery-modal-content">
+            <LineTrendChart
+              points={batteryTelemetry.points}
+              xLabel="Hours Since Run Start"
+              yLabel="Battery (%)"
+              valueFormatter={(value) => `${Math.round(value)}%`}
+            />
+
+            <div className="battery-metrics-grid">
+              <div className="battery-metric-card">
+                <div className="battery-metric-label">Final Battery</div>
+                <div className="battery-metric-value">{batteryTelemetry.finalBattery.toFixed(1)}%</div>
+              </div>
+              <div className="battery-metric-card">
+                <div className="battery-metric-label">Estimated Battery Duration</div>
+                <div className="battery-metric-value">{batteryTelemetry.estimatedBatteryDuration.toFixed(1)}h</div>
+              </div>
+              <div className="battery-metric-card">
+                <div className="battery-metric-label">Actual Battery Duration</div>
+                <div className="battery-metric-value">{batteryTelemetry.actualBatteryDuration.toFixed(1)}h</div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

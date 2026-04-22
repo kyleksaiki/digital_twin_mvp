@@ -1,12 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRun } from "../api";
-import {
-  validateCalibration,
-  screenToReal,
-  realToScreen,
-  formatCoordinate,
-  parseCoordinate,
-} from "../utils/coordinates";
 
 /**
  * CreateRun - Interactive topology design canvas for creating new simulation runs
@@ -49,6 +42,41 @@ function ComponentPowerModel(batteryLife, components, isShamanII = false) {
     micSleep: new CVP(),
   });
 }
+
+const REAL_COORD_BOUNDS = Object.freeze({
+  minX: 0,
+  maxX: 1000,
+  minY: 0,
+  maxY: 1000,
+});
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function normalizedToRealCoordinates(x, y) {
+  return {
+    realX: Number(
+      (REAL_COORD_BOUNDS.minX +
+        x * (REAL_COORD_BOUNDS.maxX - REAL_COORD_BOUNDS.minX)).toFixed(2),
+    ),
+    realY: Number(
+      (REAL_COORD_BOUNDS.minY +
+        y * (REAL_COORD_BOUNDS.maxY - REAL_COORD_BOUNDS.minY)).toFixed(2),
+    ),
+  };
+}
+
+function realToNormalizedCoordinates(realX, realY) {
+  const xRange = REAL_COORD_BOUNDS.maxX - REAL_COORD_BOUNDS.minX || 1;
+  const yRange = REAL_COORD_BOUNDS.maxY - REAL_COORD_BOUNDS.minY || 1;
+
+  return {
+    x: clamp((realX - REAL_COORD_BOUNDS.minX) / xRange, 0, 1),
+    y: clamp((realY - REAL_COORD_BOUNDS.minY) / yRange, 0, 1),
+  };
+}
+
 export default function CreateRun({ onNavigate, onRunCreated }) {
   const canvasRef = useRef(null);
   const tipRef = useRef(null);
@@ -71,8 +99,10 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   const [isLoading, setIsLoading] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
   const [runName, setRunName] = useState(null);
-  const [runScenario, setRunScenario] = useState(null);
-  const [runDuration, setRunDuration] = useState(null);
+  const [coordNodeType, setCoordNodeType] = useState("sensor");
+  const [coordX, setCoordX] = useState("");
+  const [coordY, setCoordY] = useState("");
+  const [coordError, setCoordError] = useState("");
 
   const stateRef = useRef({
     nodes: [],
@@ -217,23 +247,28 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
 
   /**
    * Returns a consistent color per connection type:
-   *   Command–Shaman II  → blue   (#3b82f6)
-   *   Shaman II–Shaman II → red   (#ef4444)
-   *   Shaman II–Shaman I  → violet (#8b5cf6)
+   *   LoRa backbone       → blue (#3b82f6)
+   *   Wi-Fi access links  → red  (#ef4444)
    */
   function connectionTypeColor(fromRole, toRole) {
-    if (
-      (fromRole === "command" && toRole === "relay") ||
-      (fromRole === "relay" && toRole === "command")
-    )
-      return "#3b82f6";
-    if (fromRole === "relay" && toRole === "relay") return "#ef4444";
+    // Wi-Fi links: Shaman II <-> Shaman I
     if (
       (fromRole === "relay" && toRole === "sensor") ||
       (fromRole === "sensor" && toRole === "relay")
-    )
-      return "#8b5cf6";
-    return "#7a5dfb";
+    ) {
+      return "#ef4444";
+    }
+
+    // LoRa links: Command <-> Shaman II and Shaman II <-> Shaman II
+    if (
+      (fromRole === "command" && toRole === "relay") ||
+      (fromRole === "relay" && toRole === "command")
+    ) {
+      return "#3b82f6";
+    }
+    if (fromRole === "relay" && toRole === "relay") return "#3b82f6";
+
+    return "#3b82f6";
   }
 
   function formatComponentLabel(name) {
@@ -443,9 +478,10 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     return false;
   }
 
-  function addNode(role) {
+  function buildNode(role, x, y, realX = null, realY = null) {
     const s = stateRef.current;
     s.nodeCounter[role]++;
+
     const id =
       role === "command"
         ? "CMD"
@@ -453,10 +489,12 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
           ? `R${s.nodeCounter.relay}`
           : `S${s.nodeCounter.sensor}`;
 
-    const x = Math.random() * 0.3 + 0.35;
-    const y = Math.random() * 0.3 + 0.35;
+    const resolvedCoordinates =
+      Number.isFinite(realX) && Number.isFinite(realY)
+        ? { realX, realY }
+        : normalizedToRealCoordinates(x, y);
 
-    const newNode = {
+    return {
       id,
       label:
         role === "command"
@@ -467,9 +505,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       role,
       x,
       y,
+      realX: resolvedCoordinates.realX,
+      realY: resolvedCoordinates.realY,
     };
-
-    setNodes((prevNodes) => [...prevNodes, newNode]);
   }
 
   function deleteNode(nodeToDelete) {
@@ -596,31 +634,11 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       const h = rectArea.height;
 
       // Convert screen coords to normalized coords
-      const x = (mx - w / 2 - s.panX) / (s.zoom * w) + 0.5;
-      const y = (my - h / 2 - s.panY) / (s.zoom * h) + 0.5;
+      const x = clamp((mx - w / 2 - s.panX) / (s.zoom * w) + 0.5, 0, 1);
+      const y = clamp((my - h / 2 - s.panY) / (s.zoom * h) + 0.5, 0, 1);
 
-      console.log(x, y);
       const role = s.isPlacingNode;
-      s.nodeCounter[role]++;
-
-      const id =
-        role === "command"
-          ? "CMD"
-          : role === "relay"
-            ? `R${s.nodeCounter.relay}`
-            : `S${s.nodeCounter.sensor}`;
-
-      const newNode = {
-        id,
-        label:
-          role === "command"
-            ? "Command Center"
-            : role === "relay"
-              ? `Shaman II (${id})`
-              : `Shaman I (${id})`,
-        role,
-        x, y
-      };
+      const newNode = buildNode(role, x, y);
 
       setNodes((prevNodes) => [...prevNodes, newNode]);
       s.isPlacingNode = null;
@@ -692,6 +710,33 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     });
   }
 
+  function insertNodeAtRealCoordinate() {
+    const parsedX = Number(coordX);
+    const parsedY = Number(coordY);
+
+    if (!Number.isFinite(parsedX) || !Number.isFinite(parsedY)) {
+      setCoordError("Enter valid numeric coordinates.");
+      return;
+    }
+
+    if (
+      parsedX < REAL_COORD_BOUNDS.minX ||
+      parsedX > REAL_COORD_BOUNDS.maxX ||
+      parsedY < REAL_COORD_BOUNDS.minY ||
+      parsedY > REAL_COORD_BOUNDS.maxY
+    ) {
+      setCoordError(
+        `Coordinates must be within ${REAL_COORD_BOUNDS.minX}-${REAL_COORD_BOUNDS.maxX} (X) and ${REAL_COORD_BOUNDS.minY}-${REAL_COORD_BOUNDS.maxY} (Y).`,
+      );
+      return;
+    }
+
+    const { x, y } = realToNormalizedCoordinates(parsedX, parsedY);
+    const newNode = buildNode(coordNodeType, x, y, parsedX, parsedY);
+    setNodes((prevNodes) => [...prevNodes, newNode]);
+    setCoordError("");
+  }
+
   async function runSimulation() {
     setWorkflow("loading");
     setIsLoading(true);
@@ -702,10 +747,10 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     // Create run data
     const runData = {
       name: runName || `Run-${new Date().toISOString().split("T")[0]}-${Date.now() % 10000}`,
-      scenario: runScenario || "Digital Twin Simulation",
-      shamanIProcessor,
-      shamanIIProcessor,
-      duration: runDuration || "24h",
+      scenario: "MVP Simulation",
+      shamani: shamanIProcessor,
+      shamanii: shamanIIProcessor,
+      duration: "24h",
       status: "pass",
       nodes: nodes.map((n) => ({
         id: n.id,
@@ -713,6 +758,10 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         role: n.role,
         x: n.x,
         y: n.y,
+        realX: n.realX ?? null,
+        realY: n.realY ?? null,
+        lat: n.realX ?? null,
+        lon: n.realY ?? null,
       })),
       edges: edges.map((e) => ({
         from: e.from,
@@ -749,6 +798,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     setNodes([]);
     setEdges([]);
     setMediaFiles({});
+    setCoordX("");
+    setCoordY("");
+    setCoordError("");
     setShamanIConfig(new ComponentPowerModel(30));
     setShamanIIConfig(new ComponentPowerModel());
     // Navigate to run selector if run was created
@@ -815,6 +867,36 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         >
           + Shaman I
         </button>
+
+        <div className="coord-panel-title">Insert at Real Coordinate</div>
+        <select
+          className="coord-input"
+          value={coordNodeType}
+          onChange={(e) => setCoordNodeType(e.target.value)}
+        >
+          <option value="command">Command Center</option>
+          <option value="relay">Shaman II</option>
+          <option value="sensor">Shaman I</option>
+        </select>
+        <input
+          className="coord-input"
+          type="number"
+          placeholder={`X (${REAL_COORD_BOUNDS.minX}-${REAL_COORD_BOUNDS.maxX})`}
+          value={coordX}
+          onChange={(e) => setCoordX(e.target.value)}
+        />
+        <input
+          className="coord-input"
+          type="number"
+          placeholder={`Y (${REAL_COORD_BOUNDS.minY}-${REAL_COORD_BOUNDS.maxY})`}
+          value={coordY}
+          onChange={(e) => setCoordY(e.target.value)}
+        />
+        <button className="toolbar-btn" onClick={insertNodeAtRealCoordinate}>
+          Insert Node
+        </button>
+        {coordError ? <div className="coord-error">{coordError}</div> : null}
+
         <div className="toolbar-divider"></div>
         <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
           <div>Nodes: {nodes.length}</div>
@@ -919,7 +1001,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
               flexShrink: 0,
             }}
           ></div>
-          <span>Command–Shaman II</span>
+          <span>LoRa (Shaman II backbone)</span>
         </div>
         <div className="legend-row">
           <div
@@ -931,19 +1013,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
               flexShrink: 0,
             }}
           ></div>
-          <span>Shaman II–Shaman II</span>
-        </div>
-        <div className="legend-row">
-          <div
-            style={{
-              width: "20px",
-              height: "3px",
-              borderRadius: "2px",
-              background: "#8b5cf6",
-              flexShrink: 0,
-            }}
-          ></div>
-          <span>Shaman II–Shaman I</span>
+          <span>Wi-Fi (Shaman II to Shaman I)</span>
         </div>
         <div
           style={{
@@ -1409,36 +1479,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                       }
                     />
                   </div>
-                  <div className="scp-input-group">
-                    <label className="scp-label">Scenario:</label>
-                    <select
-                      className="scp-input"
-                      value={runScenario || ""}
-                      onChange={(e) =>
-                        setRunScenario(e.target.value)
-                      }
-                    >
-                      <option value="">Select scenario...</option>
-                      <option value="Poacher Detection">Poacher Detection</option>
-                      <option value="Wildlife Monitoring">Wildlife Monitoring</option>
-                      <option value="Perimeter Security">Perimeter Security</option>
-                      <option value="Custom">Custom</option>
-                    </select>
-                  </div>
-
-                  <div className="scp-input-group">
-                    <label className="scp-label">Duration (Hours):</label>
-                    <input
-                      type="number"
-                      className="scp-input"
-                      value={runDuration || ""}
-                      onChange={(e) =>
-                        setRunDuration(e.target.value)
-                      }
-                      min="1"
-                      max="168"
-                      placeholder="Hours (1-168)"
-                    />
+                  <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.5" }}>
+                    Scenario and duration are auto-configured for this MVP run.
+                    You can still customize processor and power models in earlier steps.
                   </div>
                 </div>
               )}

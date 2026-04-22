@@ -40,10 +40,9 @@ export default function RunSelector({page, onOpen}){
     const query = searchQuery.toLowerCase()
     return (
       r.name.toLowerCase().includes(query) ||
-      r.scenario.toLowerCase().includes(query) ||
+      (r.scenario && r.scenario.toLowerCase().includes(query)) ||
       (r.shamanIProcessor && r.shamanIProcessor.toLowerCase().includes(query)) ||
       (r.shamanIIProcessor && r.shamanIIProcessor.toLowerCase().includes(query)) ||
-      r.status.toLowerCase().includes(query) ||
       r.date.includes(query)
     )
   })
@@ -88,11 +87,9 @@ export default function RunSelector({page, onOpen}){
               <th className="cb-cell"></th>
               <th>Run Name</th>
               <th>Date</th>
-              <th>Scenario</th>
               <th>Shaman I Processor</th>
               <th>Shaman II Processor</th>
               <th>Duration</th>
-              <th>Status</th>
             </tr>
           </thead>
           <tbody id="runsTableBody">
@@ -104,16 +101,14 @@ export default function RunSelector({page, onOpen}){
                   </td>
                   <td>{r.name}</td>
                   <td style={{fontFamily:'var(--font-mono)',fontSize:11}}>{r.date}</td>
-                  <td>{r.scenario}</td>
                   <td><span className="badge badge-hw">{r.shamanIProcessor || "—"}</span></td>
                   <td><span className="badge badge-hw">{r.shamanIIProcessor || "—"}</span></td>
                   <td style={{fontFamily:'var(--font-mono)',fontSize:11}}>{r.duration}</td>
-                  <td><span className={`status-dot ${r.status}`}></span>{r.status.charAt(0).toUpperCase()+r.status.slice(1)}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="9" style={{textAlign:'center', padding:'24px', color:'var(--text-muted)'}}>
+                <td colSpan="6" style={{textAlign:'center', padding:'24px', color:'var(--text-muted)'}}>
                   No runs match "{searchQuery}"
                 </td>
               </tr>

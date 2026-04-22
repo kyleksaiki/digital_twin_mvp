@@ -139,6 +139,9 @@ Status: {run_details['status']}
 def chat(query: ChatQuery) -> ChatResponse:
     """Chat endpoint for run-specific questions and AI assistance."""
     q_lower = query.q.lower().strip()
+    context = query.context or {}
+    run_context = context.get("run") if isinstance(context, dict) else None
+    run_name = run_context.get("name") if isinstance(run_context, dict) else None
     
     # Test mode: Handle simple math expressions (e.g., "1 + 1" → "2")
     if is_math_expression(query.q):
@@ -150,6 +153,12 @@ def chat(query: ChatQuery) -> ChatResponse:
     for keyword, response in RESPONSE_MAP.items():
         if keyword in q_lower:
             return ChatResponse(answer=response)
+
+    if "confidence" in q_lower:
+        return ChatResponse(answer="Confidence is the model's certainty score for a detection. Higher thresholds reduce false positives but can miss weaker true events.")
+
+    if run_name and ("latency" in q_lower or "spike" in q_lower):
+        return ChatResponse(answer=f"I can analyze latency changes for {run_name}. The current MVP context tracks aggregate run metrics and is ready for deeper per-timestep telemetry wiring.")
     
     # Try to use OpenAI API if available
     if client:
@@ -160,6 +169,10 @@ def chat(query: ChatQuery) -> ChatResponse:
                     {
                         "role": "system",
                         "content": "You are an AI assistant for a digital twin forest monitoring system. Provide concise, helpful answers about sensor networks, battery life, data analysis, and detection accuracy.",
+                    },
+                    {
+                        "role": "system",
+                        "content": f"Context mode: {context.get('mode', 'general')}. Run context: {run_context}",
                     },
                     {
                         "role": "user",
@@ -176,5 +189,8 @@ def chat(query: ChatQuery) -> ChatResponse:
             return ChatResponse(answer=DEFAULT_RESPONSE)
     
     # Fallback response
+    if run_name:
+        return ChatResponse(answer=f"I can answer general questions now and I'm prepared to reason over run-specific context for {run_name} as telemetry detail is added.")
+
     return ChatResponse(answer=DEFAULT_RESPONSE)
 

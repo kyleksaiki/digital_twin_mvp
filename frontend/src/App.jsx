@@ -19,6 +19,7 @@ import './styles/NetMap.css'
 import './styles/DetailPanel.css'
 import './styles/AISummary.css'
 import './styles/CreateRun.css'
+import './styles/visuals.css'
 
 export default function App(){
   const titles = { runsel:'Run Selector', overview:'Overview Dashboard', netmap:'Network Map', aisummary:'AI Assistant', create:'Create New Run' }

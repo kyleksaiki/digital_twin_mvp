@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { fetchAiSummary, postChat } from '../api'
 import { useApi } from '../hooks/useApi'
+import { buildAssistantContext } from '../utils/aiContext'
 
 /**
  * AIAssistant - AI-generated insights and chat interface
@@ -37,6 +38,11 @@ export default function AIAssistant({loadedRun}){
   const [isSending, setIsSending] = useState(false)
   const messagesEndRef = useRef(null)
 
+  const assistantContext = useMemo(
+    () => buildAssistantContext(loadedRun, data),
+    [loadedRun, data],
+  )
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -44,6 +50,10 @@ export default function AIAssistant({loadedRun}){
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  useEffect(() => {
+    setMessages([])
+  }, [loadedRun?.id])
 
   async function send(){
     if (!q.trim()) return
@@ -54,7 +64,7 @@ export default function AIAssistant({loadedRun}){
     setIsSending(true)
     
     try {
-      const r = await postChat(userMessage)
+      const r = await postChat(userMessage, assistantContext)
       setMessages(prev => [...prev, { type: 'assistant', text: r.answer }])
     } catch (err) {
       setMessages(prev => [...prev, { type: 'assistant', text: 'Sorry, I encountered an error. Please try again.' }])
@@ -67,6 +77,18 @@ export default function AIAssistant({loadedRun}){
 
   return (
     <div style={{padding:24, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden'}}>
+      <div className="ai-intro-banner">
+        <div className="ai-intro-title">Ask the Assistant</div>
+        <div className="ai-intro-text">
+          Ask about run metrics, visualizations, or system behavior.
+          The assistant supports both general guidance and run-specific analysis as context grows.
+        </div>
+        <div className="ai-intro-meta">
+          <span className="ai-intro-chip">Mode: {assistantContext.mode === 'run-specific' ? 'Run-Specific' : 'General'}</span>
+          {assistantContext.run ? <span className="ai-intro-chip">Run: {assistantContext.run.name}</span> : null}
+        </div>
+      </div>
+
       <div className="summary-card">
         <div className="summary-card-title">AI Assistant</div>
         <div className="summary-text">{data?.content || "No summary available"}</div>
@@ -88,7 +110,7 @@ export default function AIAssistant({loadedRun}){
             value={q} 
             onChange={e=>setQ(e.target.value)} 
             onKeyDown={e=>{if(e.key==="Enter" && !isSending) send();}} 
-            placeholder="Ask about battery, gunshot events, bottlenecks..."
+            placeholder={assistantContext.mode === 'run-specific' ? 'Ask about this run, e.g. latency spikes or battery trends...' : 'Ask general questions, e.g. what is confidence threshold?'}
             disabled={isSending}
           />
           <button className="chat-send" onClick={send} disabled={isSending}>↩</button>

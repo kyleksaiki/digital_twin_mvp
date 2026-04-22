@@ -2,10 +2,37 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+import re
+from typing import Dict
 from app.database import get_db
 from app.db_models import NetworkNodeRow, NetworkEdgeRow, RerouteEventRow, NodeEventRow, NodeChildRow
 
 router = APIRouter(prefix="/api", tags=["network"])
+
+
+def _extract_detection_counts(events: list[str]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for event_text in events:
+        match = re.search(r"(\d+)\s+([A-Za-z][A-Za-z\s_-]*)", str(event_text or ""))
+        if not match:
+            continue
+
+        count = int(match.group(1))
+        label = match.group(2).strip().replace("_", " ").replace("-", " ").title()
+        counts[label] = counts.get(label, 0) + count
+
+    if "Gunshot" not in counts:
+        counts["Gunshot"] = 0
+    return counts
+
+
+def _merge_counts(base: Dict[str, int], other: Dict[str, int]) -> Dict[str, int]:
+    merged = dict(base)
+    for key, value in other.items():
+        merged[key] = merged.get(key, 0) + value
+    if "Gunshot" not in merged:
+        merged["Gunshot"] = 0
+    return merged
 
 
 @router.get("/netmap")
@@ -33,12 +60,26 @@ def get_netmap(
 
     nodes = []
     for n in node_rows:
+        node_events = events_by_node.get(n.node_id, [])
+        detection_counts = _extract_detection_counts(node_events)
+
+        if n.role == "relay":
+            for child_id in children_by_node.get(n.node_id, []):
+                detection_counts = _merge_counts(
+                    detection_counts,
+                    _extract_detection_counts(events_by_node.get(child_id, [])),
+                )
+
         nodes.append({
             "id":            n.node_id,
             "label":         n.label,
             "role":          n.role,
             "x":             n.pos_x,
             "y":             n.pos_y,
+            "lat":           n.lat,
+            "lon":           n.lon,
+            "realX":         n.lat,
+            "realY":         n.lon,
             "battery":       n.battery,
             "drain":         n.drain,
             "traffic":       n.traffic,
@@ -48,7 +89,11 @@ def get_netmap(
             "retries":       n.retries,
             "collisions":    n.collisions,
             "aiDet":         n.ai_det,
-            "events":        events_by_node.get(n.node_id, []),
+            "events":        node_events,
+            "detectionByType": [
+                {"label": label, "count": value}
+                for label, value in sorted(detection_counts.items(), key=lambda kv: kv[1], reverse=True)
+            ],
             "powerBreakdown": {
                 "radio":     n.power_radio,
                 "processor": n.power_processor,

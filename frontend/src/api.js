@@ -27,7 +27,12 @@ export function fetchAiSummary(runId){
   return getJson('/ai/summary')
 }
 export function createRun(runData){ return postJson('/runs/create', runData) }
-export async function postChat(q){
-  const res = await fetch(`${API_BASE}/ai/chat`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({q}) })
+export async function postChat(q, context = null){
+  const body = context ? { q, context } : { q }
+  const res = await fetch(`${API_BASE}/ai/chat`, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(body)
+  })
   return res.json()
 }

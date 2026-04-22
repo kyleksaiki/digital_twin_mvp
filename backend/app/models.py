@@ -83,6 +83,7 @@ class NetworkMap(BaseModel):
 class ChatQuery(BaseModel):
     """Chat message from user."""
     q: str
+    context: Optional[Dict[str, Any]] = None
 
 
 class ChatResponse(BaseModel):
