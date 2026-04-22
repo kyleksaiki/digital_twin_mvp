@@ -27,7 +27,6 @@
 }
 
 .ai-intro-banner {
-    background: linear-gradient(135deg, rgba(59,130,246,0.18), rgba(16,185,129,0.12));
     border: 1px solid rgba(59,130,246,0.35);
     border-radius: var(--radius-md);
     padding: 14px 16px;

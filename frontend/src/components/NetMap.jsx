@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { fetchNetmap } from "../api";
 import Modal from "./common/Modal";
 import { LineTrendChart } from "./common/SimpleCharts";
@@ -146,6 +146,7 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
   const [selectedNodeId, setSelectedNodeId] = React.useState(null);
   const [isBatteryModalOpen, setIsBatteryModalOpen] = React.useState(false);
   const [isBatteryModalExpanded, setIsBatteryModalExpanded] = React.useState(false);
+  const [mouseCoords, setMouseCoords] = useState({ x: 0, y: 0, visible: false });
   const stateRef = useRef({
     nodes: [],
     edges: [],
@@ -163,6 +164,13 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     dragStartY: 0,
     panStartX: 0,
     panStartY: 0,
+  });
+  // Use same real coord bounds as CreateRun for consistency
+  const REAL_COORD_BOUNDS = Object.freeze({
+    minX: 0,
+    maxX: 1000,
+    minY: 0,
+    maxY: 1000,
   });
   const rafRef = useRef(null);
   const selectedNode = nodesSnapshot.find((node) => node.id === selectedNodeId) || null;
@@ -593,6 +601,7 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     window.addEventListener("mouseup", onMouseUp);
     canvas.addEventListener("wheel", onWheel, { passive: false });
     canvas.addEventListener("click", onClick);
+    canvas.addEventListener("mouseleave", onMouseLeave);
   }
   function detachEvents() {
     const canvas = canvasRef.current;
@@ -602,6 +611,7 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     window.removeEventListener("mouseup", onMouseUp);
     canvas.removeEventListener("wheel", onWheel);
     canvas.removeEventListener("click", onClick);
+    canvas.removeEventListener("mouseleave", onMouseLeave);
   }
 
   function onMouseDown(e) {
@@ -628,6 +638,28 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
       clampPan();
       return;
     }
+    // compute normalized and real coords similar to CreateRun
+    const w = rect.width;
+    const h = rect.height;
+    const normalizedX = Math.max(0, Math.min(1, (mx - w / 2 - s.panX) / (s.zoom * w) + 0.5));
+    const normalizedY = Math.max(0, Math.min(1, (my - h / 2 - s.panY) / (s.zoom * h) + 0.5));
+    const realX = Number(
+      (
+        REAL_COORD_BOUNDS.minX +
+        normalizedX * (REAL_COORD_BOUNDS.maxX - REAL_COORD_BOUNDS.minX)
+      ).toFixed(2),
+    );
+    const realY = Number(
+      (
+        REAL_COORD_BOUNDS.minY +
+        normalizedY * (REAL_COORD_BOUNDS.maxY - REAL_COORD_BOUNDS.minY)
+      ).toFixed(2),
+    );
+
+    setMouseCoords((prev) => {
+      if (prev.visible && prev.x === realX && prev.y === realY) return prev;
+      return { x: realX, y: realY, visible: true };
+    });
     // hover detection
     s.hoveredNode = null;
     for (const n of s.nodes) {
@@ -644,6 +676,10 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     }
     canvas.style.cursor = s.isDragging ? "grabbing" : "grab";
     hideTip();
+  }
+
+  function onMouseLeave() {
+    setMouseCoords((prev) => (prev.visible ? { ...prev, visible: false } : prev));
   }
 
   function onMouseUp() {
@@ -915,10 +951,16 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
 
       {/* Zoom controls (top-right) */}
       {hasData && (
-        <div className="map-zoom">
+        <div>
+          <div className={`map-cursor-popup ${mouseCoords.visible ? 'visible' : ''}`}>
+            <div className="map-cursor-row">X: {mouseCoords.x}</div>
+            <div className="map-cursor-row">Y: {mouseCoords.y}</div>
+          </div>
+          <div className="map-zoom">
           <button className="zoom-btn" onClick={zoomIn} title="Zoom In">+</button>
           <button className="zoom-btn" onClick={zoomOut} title="Zoom Out">−</button>
           <button className="zoom-btn recenter" onClick={recenter} title="Recenter">⌖</button>
+        </div>
         </div>
       )}
 
@@ -948,7 +990,7 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
           </div>
           <div className="legend-row">
             <div className="legend-line" style={{background:'#3b82f6'}}></div>
-            <span>LoRa (Shaman II backbone)</span>
+            <span>LoRa (Shaman II to Shaman II)</span>
           </div>
           <div className="legend-row">
             <div className="legend-line" style={{background:'#ef4444'}}></div>

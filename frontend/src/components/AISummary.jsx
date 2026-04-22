@@ -76,25 +76,19 @@ export default function AIAssistant({loadedRun}){
   if(loading) return <div style={{padding:24}}>Loading AI Assistant…</div>
 
   return (
-    <div style={{padding:24, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden'}}>
-      <div className="ai-intro-banner">
-        <div className="ai-intro-title">Ask the Assistant</div>
-        <div className="ai-intro-text">
-          Ask about run metrics, visualizations, or system behavior.
+    <div style={{padding:48, display:'flex', flexDirection:'column', height:'100%', overflow:'hidden'}}>
+      
+
+      <div className="pg-header">
+        <div>
+          <div className="pg-title">Ask the Assistant</div>
+          <p>Ask about run metrics, visualizations, or system behavior.
           The assistant supports both general guidance and run-specific analysis as context grows.
-        </div>
-        <div className="ai-intro-meta">
-          <span className="ai-intro-chip">Mode: {assistantContext.mode === 'run-specific' ? 'Run-Specific' : 'General'}</span>
-          {assistantContext.run ? <span className="ai-intro-chip">Run: {assistantContext.run.name}</span> : null}
+        </p>
         </div>
       </div>
 
-      <div className="summary-card">
-        <div className="summary-card-title">AI Assistant</div>
-        <div className="summary-text">{data?.content || "No summary available"}</div>
-      </div>
-      
-      <div className="chat-container" style={{display:'flex', flexDirection:'column', flex:1, marginTop:16}}>
+      <div className="chat-container" style={{display:'flex', flexDirection:'column', flex:1, marginBottom:16}}>
         <div className="chat-messages" style={{flex:1, overflowY:'auto', marginBottom:12}}>
           {messages.map((msg, idx) => (
             <div key={idx} className={`chat-msg ${msg.type}`}>
@@ -116,6 +110,12 @@ export default function AIAssistant({loadedRun}){
           <button className="chat-send" onClick={send} disabled={isSending}>↩</button>
         </div>
       </div>
+      
+      <div className="summary-card">
+        <div className="summary-card-title">AI Summary</div>
+        <div className="summary-text">{data?.content || "No summary available"}</div>
+      </div>
+      
     </div>
   )
 }

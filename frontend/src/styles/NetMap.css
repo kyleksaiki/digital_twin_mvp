@@ -128,6 +128,37 @@
     gap: 3px;
 }
 
+
+.map-cursor-popup {
+    position: absolute;
+    top: 14px;
+    right: 56px;
+    z-index: 10;
+    min-width: 92px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-deep);
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.35;
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    transform: translateY(-2px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    pointer-events: none;
+}
+
+.map-cursor-popup.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.map-cursor-row {
+    white-space: nowrap;
+}
+
 .zoom-btn {
     width: 32px;
     height: 32px;

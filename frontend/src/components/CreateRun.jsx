@@ -103,6 +103,11 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   const [coordX, setCoordX] = useState("");
   const [coordY, setCoordY] = useState("");
   const [coordError, setCoordError] = useState("");
+  const [mouseCoords, setMouseCoords] = useState({
+    x: REAL_COORD_BOUNDS.minX,
+    y: REAL_COORD_BOUNDS.minY,
+    visible: false,
+  });
 
   const stateRef = useRef({
     nodes: [],
@@ -540,6 +545,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     if (!canvas) return;
     canvas.addEventListener("mousedown", onMouseDown);
     canvas.addEventListener("mousemove", onMouseMove);
+    canvas.addEventListener("mouseleave", onMouseLeave);
     canvas.addEventListener("mouseup", onMouseUp);
     canvas.addEventListener("wheel", onWheel, { passive: false });
     canvas.addEventListener("click", onClick);
@@ -552,6 +558,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     if (!canvas) return;
     canvas.removeEventListener("mousedown", onMouseDown);
     canvas.removeEventListener("mousemove", onMouseMove);
+    canvas.removeEventListener("mouseleave", onMouseLeave);
     canvas.removeEventListener("mouseup", onMouseUp);
     canvas.removeEventListener("wheel", onWheel);
     canvas.removeEventListener("click", onClick);
@@ -578,6 +585,23 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
+    const w = rect.width;
+    const h = rect.height;
+
+    const normalizedX = clamp((mx - w / 2 - s.panX) / (s.zoom * w) + 0.5, 0, 1);
+    const normalizedY = clamp((my - h / 2 - s.panY) / (s.zoom * h) + 0.5, 0, 1);
+    const realCoords = normalizedToRealCoordinates(normalizedX, normalizedY);
+
+    setMouseCoords((prev) => {
+      if (
+        prev.visible &&
+        prev.x === realCoords.realX &&
+        prev.y === realCoords.realY
+      ) {
+        return prev;
+      }
+      return { x: realCoords.realX, y: realCoords.realY, visible: true };
+    });
 
     s.lastMouseX = mx;
     s.lastMouseY = my;
@@ -604,6 +628,13 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     }
 
     canvas.style.cursor = s.isDragging ? "grabbing" : "grab";
+  }
+
+  function onMouseLeave() {
+    setMouseCoords((prev) => {
+      if (!prev.visible) return prev;
+      return { ...prev, visible: false };
+    });
   }
 
   function onMouseUp() {
@@ -905,6 +936,11 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       </div>
 
       {/* Zoom controls (top-right) */}
+      <div className={`map-cursor-popup ${mouseCoords.visible ? "visible" : ""}`}>
+        <div className="map-cursor-row">X: {mouseCoords.x}</div>
+        <div className="map-cursor-row">Y: {mouseCoords.y}</div>
+      </div>
+
       <div className="map-zoom">
         <button className="zoom-btn" onClick={zoomIn} title="Zoom In">
           +
@@ -1001,7 +1037,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
               flexShrink: 0,
             }}
           ></div>
-          <span>LoRa (Shaman II backbone)</span>
+          <span>LoRa (Shaman II to Shaman II)</span>
         </div>
         <div className="legend-row">
           <div
@@ -1480,8 +1516,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                     />
                   </div>
                   <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.5" }}>
-                    Scenario and duration are auto-configured for this MVP run.
-                    You can still customize processor and power models in earlier steps.
+                    
                   </div>
                 </div>
               )}
