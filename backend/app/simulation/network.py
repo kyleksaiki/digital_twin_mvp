@@ -35,10 +35,39 @@ class SimNode:
     energy_wh: float = 22.0
     energy_consumed_wh: float = 0.0
 
-    # Event counts
-    events_detected: int = 0
-    events_received: int = 0
-    events_forwarded: int = 0
+    # Event counts — spec variables (§2.5)
+    n_local: int = 0              # events detected locally (sensors only)
+    n_received_wifi: int = 0      # packets received from Shaman I children (WiFi)
+    n_received_lora: int = 0      # packets received from Shaman II children (LoRa)
+    n_retries: int = 0            # CSMA retries accumulated on TX
+
+    @property
+    def n_received(self) -> int:
+        """Total received = WiFi + LoRa children."""
+        return self.n_received_wifi + self.n_received_lora
+
+    @property
+    def n_forward(self) -> int:
+        """Packets to forward = own detections + received from children."""
+        return self.n_local + self.n_received
+
+    # Legacy aliases kept for backward compatibility with the output schema.
+    @property
+    def events_detected(self) -> int:
+        return self.n_local
+
+    @property
+    def events_received(self) -> int:
+        return self.n_received
+
+    @property
+    def events_forwarded(self) -> int:
+        # Sensors and gateway don't forward; relays forward everything they see.
+        if self.role == NodeRole.COMMAND:
+            return 0
+        if self.role == NodeRole.SENSOR:
+            return 0
+        return self.n_forward
 
     # Time series output
     battery_history: List[Dict] = field(default_factory=list)

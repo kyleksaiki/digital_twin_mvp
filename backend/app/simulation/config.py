@@ -1,60 +1,62 @@
 """
-Battery simulation configuration.
+Battery simulation configuration — aligned to the Energy State / Variables /
+Equations spec.
 
 What this file defines:
-  - `ComponentPower`: one component's power draw (current + voltage, or watts).
-  - `NodeTypeConfig`: battery capacity + processor + all component states for
-                      a single node type (Shaman I sensor or Shaman II relay).
-  - `RadioConfig`:    LoRa radio parameters used for transmit-airtime math.
-  - `EventTimings`:   how long each event-driven state lasts (inference burst,
-                      relay routing, etc.).
+  - `ComponentPower`: one state's power draw (current + voltage, or watts).
+  - `ShamanIConfig`:  Shaman I (sensor) variables per the spec:
+                      P_mic, P_mic_off, P_proc_shaI_active, P_proc_shaI_sleep,
+                      P_wifi_tx, t_proc_shaI, t_tx_wifi.
+  - `ShamanIIConfig`: Shaman II (relay/gateway) variables per the spec:
+                      two processors (main + ESP32 controller), LoRa + WiFi RX,
+                      LoRa TX, CSMA backoff.
+  - `RadioConfig`:    LoRa packet-level params (SF, BW, CR, packet_bytes,
+                      frames_per_hop) + WiFi durations + CSMA retry model.
   - `SimulationConfig`: the full bundle the engine consumes.
 
-The GUI's Configure Run modal sends one payload per node type. This file reads
-those payloads as-is, so whatever the user enters flows straight through.
+GUI backward compatibility:
+  Configure Run (`CreateRun.jsx`) uses the older `components.{sleep,working,
+  transmit,receive,micListen,micSleep,...}` schema. We map those to the new
+  spec variables automatically:
 
-Expected GUI payload shape (one per node type):
+      Shaman I          GUI `components` key        Spec variable
+      ---------         ------------------          ----------------------
+      sensor MCU idle   `sleep`                     P_proc_shaI_sleep
+      sensor MCU active `working`                   P_proc_shaI_active
+      sensor WiFi TX    `transmit`                  P_wifi_tx
+      mic listening     `micListen`                 P_mic
+      mic off           `micSleep`                  P_mic_off
 
-    {
-      "batteryLife": 30.0,                  # Wh
-      "processor":   "ESP32",
-      "components": {
-        "sleep":       {"current": 0.8,  "voltage": 3.3, "power": null},
-        "working":     {"current": 160,  "voltage": 3.3, "power": null},
-        "transmit":    {"current": 220,  "voltage": 3.3, "power": null},
-        "receive":     {"current": 100,  "voltage": 3.3, "power": null},
-        "cameraImage": {"current": null, "voltage": null, "power": null},
-        "cameraSleep": {"current": null, "voltage": null, "power": null},
-        "micListen":   {"current": 0.6,  "voltage": 3.3, "power": null},
-        "micSleep":    {"current": 0.1,  "voltage": 3.3, "power": null}
-      }
-    }
+      Shaman II         GUI `components` key        Spec variable
+      ---------         ------------------          ----------------------
+      main proc idle    `sleep`                     P_proc_shaII_sleep
+      main proc active  `working`                   P_proc_shaII_active
+      LoRa TX           `transmit`                  P_lora_tx
+      LoRa RX (listen)  `receive`                   P_lora_rx
 
-Each component accepts EITHER (current mA + voltage V) OR an explicit power W.
-Explicit power wins; otherwise watts = current_mA * voltage_V / 1000.
+  Spec variables that have NO GUI equivalent (controller sub-chip on Shaman II,
+  WiFi RX on Shaman II, CSMA backoff) fall back to sensible defaults until the
+  GUI exposes them. Documented in BATTERY_MATH.md §5.
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Any
+import math
 
 
 # ---------------------------------------------------------------------------
-# Component power (current/voltage/power) — mirrors CreateRun.jsx "CVP"
+# ComponentPower — helper that resolves (current_mA, voltage_V, power_W) → W
 # ---------------------------------------------------------------------------
 
 @dataclass
 class ComponentPower:
-    """A single component state's power draw.
-
-    Accept current+voltage OR power. `watts` returns the resolved value.
-    """
+    """A single state's power draw. Accept current+voltage OR power; watts resolves."""
     current_ma: Optional[float] = None
     voltage_v:  Optional[float] = None
     power_w:    Optional[float] = None
 
     @property
     def watts(self) -> float:
-        """Resolve to a single Watts value. Explicit power wins; else I*V."""
         if self.power_w is not None:
             return float(self.power_w)
         if self.current_ma is not None and self.voltage_v is not None:
@@ -63,7 +65,7 @@ class ComponentPower:
 
     @classmethod
     def from_cvp_dict(cls, d: Optional[Dict[str, Any]]) -> "ComponentPower":
-        """Parse GUI's {current, voltage, power} payload."""
+        """Parse GUI's `{current, voltage, power}` payload."""
         if not d:
             return cls()
         return cls(
@@ -74,158 +76,154 @@ class ComponentPower:
 
 
 # ---------------------------------------------------------------------------
-# Per-node-type config (Shaman I sensor, Shaman II relay)
+# Shaman I — sensor node (mic + ESP32 + WiFi-TX to parent Shaman II)
 # ---------------------------------------------------------------------------
-
-# Component keys present in the GUI for each node type
-SHAMAN_I_COMPONENTS  = ("sleep", "working", "transmit", "receive",
-                        "cameraImage", "cameraSleep", "micListen", "micSleep")
-SHAMAN_II_COMPONENTS = ("sleep", "working", "transmit", "receive")
-
 
 @dataclass
-class NodeTypeConfig:
-    """Battery + component power config for a single node type.
+class ShamanIConfig:
+    """Shaman I sensor-node power and timing variables.
 
-    One instance for Shaman I, one for Shaman II. The Command/Gateway node
-    is modeled with the Shaman II config (it's the same hardware class).
+    Defaults are ESP32-class values and typical MEMS-mic current; the user's
+    Configure Run payload overrides whichever fields are provided.
     """
+    # Battery
     battery_wh: float = 22.0
-    processor:  str   = "ESP32"
-    components: Dict[str, ComponentPower] = field(default_factory=dict)
 
-    # Sensible per-state fallbacks (W) if user leaves a field blank.
-    # These are conservative best-guesses for ESP32-class hardware and are
-    # used ONLY when the GUI sends nothing for that component.
-    _DEFAULTS_SHAMAN_I  = {
-        "sleep":       0.003,   # 0.8mA @ 3.3V, radio off
-        "working":     0.528,   # 160mA @ 3.3V, MCU active
-        "transmit":    0.726,   # 220mA @ 3.3V, WiFi/LoRa TX (overwritten if using LoRa)
-        "receive":     0.330,   # 100mA @ 3.3V, RX
-        "cameraImage": 0.000,   # off by default
-        "cameraSleep": 0.000,
-        "micListen":   0.002,   # 0.6mA @ 3.3V
-        "micSleep":    0.0003,
-    }
-    _DEFAULTS_SHAMAN_II = {
-        "sleep":    0.5,       # relay sleep ~500mW (bigger MCU)
-        "working":  3.5,       # Radxa Zero active
-        "transmit": 0.389,     # LoRa TX 118mA @ 3.3V
-        "receive":  0.020,     # LoRa RX 6mA @ 3.3V
-    }
+    # Power variables (Watts)
+    P_mic:               float = 0.00198   # 0.6  mA @ 3.3V — MEMS mic listening
+    P_mic_off:           float = 0.00033   # 0.1  mA @ 3.3V — mic deep sleep
+    P_proc_shaI_active:  float = 0.528     # 160  mA @ 3.3V — ESP32 running AI filter
+    P_proc_shaI_sleep:   float = 0.00264   # 0.8  mA @ 3.3V — ESP32 deep sleep
+    P_wifi_tx:           float = 0.726     # 220  mA @ 3.3V — ESP32 WiFi TX
 
-    def watts(self, component: str) -> float:
-        """Power draw for a named component, falling back to defaults."""
-        c = self.components.get(component)
-        if c is not None:
-            w = c.watts
-            if w > 0:
-                return w
-        # Fall through to defaults
-        if component in self._DEFAULTS_SHAMAN_I and self._is_sensor_default():
-            return self._DEFAULTS_SHAMAN_I[component]
-        if component in self._DEFAULTS_SHAMAN_II:
-            return self._DEFAULTS_SHAMAN_II[component]
-        return 0.0
-
-    def _is_sensor_default(self) -> bool:
-        """Heuristic: Shaman I configs include camera/mic components."""
-        return any(k in self.components for k in ("cameraImage", "micListen"))
+    # Timing variables (seconds)
+    t_proc_shaI: float = 0.03              # per-event AI inference burst (30 ms default)
+    t_tx_wifi:   float = 0.005             # per-frame WiFi airtime (5 ms typical small packet)
 
     @classmethod
-    def from_gui_payload(cls, payload: Optional[Dict[str, Any]],
-                         is_sensor: bool) -> "NodeTypeConfig":
-        """Build from the Configure Run modal payload.
-
-        payload shape: {"batteryLife": float, "components": {name: {current,voltage,power}}}
-        """
+    def from_gui_payload(cls, payload: Optional[Dict[str, Any]]) -> "ShamanIConfig":
+        """Map the Configure Run payload onto spec variables."""
+        inst = cls()
         if not payload:
-            # Empty payload → pure defaults (useful for tests/mocks)
-            keys = SHAMAN_I_COMPONENTS if is_sensor else SHAMAN_II_COMPONENTS
-            return cls(
-                battery_wh=22.0,
-                components={k: ComponentPower() for k in keys},
-            )
+            return inst
+        inst.battery_wh = float(payload.get("batteryLife") or inst.battery_wh)
+        comps = payload.get("components") or {}
 
-        battery_wh = float(payload.get("batteryLife") or 22.0)
-        processor  = payload.get("processor") or ("ESP32" if is_sensor else "Radxa Zero")
-        raw_comps  = payload.get("components") or {}
-        components = {
-            name: ComponentPower.from_cvp_dict(raw_comps.get(name))
-            for name in (SHAMAN_I_COMPONENTS if is_sensor else SHAMAN_II_COMPONENTS)
-        }
-        return cls(battery_wh=battery_wh, processor=processor, components=components)
+        def w(name: str, default: float) -> float:
+            cp = ComponentPower.from_cvp_dict(comps.get(name))
+            return cp.watts if cp.watts > 0 else default
+
+        inst.P_proc_shaI_sleep  = w("sleep",     inst.P_proc_shaI_sleep)
+        inst.P_proc_shaI_active = w("working",   inst.P_proc_shaI_active)
+        inst.P_wifi_tx          = w("transmit",  inst.P_wifi_tx)
+        inst.P_mic              = w("micListen", inst.P_mic)
+        inst.P_mic_off          = w("micSleep",  inst.P_mic_off)
+        return inst
 
 
 # ---------------------------------------------------------------------------
-# Radio/airtime parameters (LoRa — configurable, sensible defaults per project docs)
+# Shaman II — relay/gateway (main proc + ESP32 controller + LoRa + WiFi-RX)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ShamanIIConfig:
+    """Shaman II relay/gateway power and timing variables."""
+    # Battery
+    battery_wh: float = 22.0
+
+    # Power variables (Watts) — main processor (e.g. Radxa-class SBC)
+    P_proc_shaII_active: float = 3.5
+    P_proc_shaII_sleep:  float = 0.5
+
+    # Power variables (Watts) — ESP32 controller handling the radio
+    P_controller_active: float = 0.528     # 160 mA @ 3.3V
+    P_controller_sleep:  float = 0.00264   # 0.8 mA @ 3.3V
+
+    # Power variables (Watts) — radios
+    P_lora_tx:  float = 0.389              # 118 mA @ 3.3V — SX1276 PA @ +14 dBm
+    P_lora_rx:  float = 0.0198             # 6   mA @ 3.3V — SX1276 RX mode
+    P_wifi_rx:  float = 0.330              # 100 mA @ 3.3V — ESP32 WiFi RX
+
+    # CSMA backoff power (during retry wait)
+    P_backoff:  float = 0.0198             # same as lora_rx (radio listens while waiting)
+
+    # Timing variables (seconds)
+    t_proc_shaII: float = 0.010            # per-received-event processing burst (10 ms)
+    t_rx_wifi:    float = 0.005            # per-frame WiFi RX airtime (matches t_tx_wifi)
+    t_backoff:    float = 0.100            # typical CSMA backoff wait (100 ms)
+
+    # t_tx_lora / t_rx_lora are derived from RadioConfig (per-frame LoRa airtime)
+
+    @classmethod
+    def from_gui_payload(cls, payload: Optional[Dict[str, Any]]) -> "ShamanIIConfig":
+        """Map the Configure Run payload onto spec variables."""
+        inst = cls()
+        if not payload:
+            return inst
+        inst.battery_wh = float(payload.get("batteryLife") or inst.battery_wh)
+        comps = payload.get("components") or {}
+
+        def w(name: str, default: float) -> float:
+            cp = ComponentPower.from_cvp_dict(comps.get(name))
+            return cp.watts if cp.watts > 0 else default
+
+        inst.P_proc_shaII_sleep  = w("sleep",    inst.P_proc_shaII_sleep)
+        inst.P_proc_shaII_active = w("working",  inst.P_proc_shaII_active)
+        inst.P_lora_tx           = w("transmit", inst.P_lora_tx)
+        inst.P_lora_rx           = w("receive",  inst.P_lora_rx)
+        # Controller + WiFi RX + backoff: no GUI fields → keep defaults.
+        return inst
+
+
+# ---------------------------------------------------------------------------
+# Radio (LoRa packet-level params + WiFi durations + CSMA retry model)
 # ---------------------------------------------------------------------------
 
 @dataclass
 class RadioConfig:
-    """LoRa radio parameters used to compute packet airtime.
-
-    Defaults match the team's Mesh Network Planning doc (§6.2 "semantic
-    transmission") and the Example Output slide (SF10). Packet size default
-    128 B is the "summary only" payload; if the hardware actually transmits
-    4128 B (as shown on one slide), flip `packet_bytes` and re-run.
-    """
-    packet_bytes:   int   = 128         # summary-only semantic packet
-    spreading_factor: int = 10          # SF10 per slide
-    bandwidth_hz:   int   = 125_000     # 125 kHz (LoRaWAN default)
-    coding_rate:    int   = 5           # 4/5 (standard)
+    """LoRa + WiFi protocol parameters used to compute airtimes and retries."""
+    # LoRa
+    packet_bytes:     int = 128            # semantic transmission payload
+    spreading_factor: int = 10             # SF10 per project docs
+    bandwidth_hz:     int = 125_000        # 125 kHz (LoRaWAN default)
+    coding_rate:      int = 5              # 4/5
     preamble_symbols: int = 8
-    frames_per_hop: int   = 3           # per task spec
+    frames_per_hop:   int = 3              # data + ACK + handshake per Kyle's spec
+
+    # CSMA retry model (no GUI input today — approximation)
+    # Average retries per TX. 0 = best-case. Set >0 to model contention.
+    avg_retries_per_tx: float = 0.0
 
     def airtime_per_frame_s(self) -> float:
-        """Semtech LoRa time-on-air formula (seconds) for one frame.
+        """Semtech SX1276 §4.1.1.6 LoRa time-on-air for one frame."""
+        sf = self.spreading_factor
+        bw = self.bandwidth_hz
+        cr = self.coding_rate
+        pl = self.packet_bytes
 
-        Reference: Semtech AN1200.13 / SX1276 datasheet §4.1.1.6
-        """
-        sf   = self.spreading_factor
-        bw   = self.bandwidth_hz
-        cr   = self.coding_rate            # 4/5..4/8 → integer 5..8
-        pl   = self.packet_bytes
-        n_preamble = self.preamble_symbols
-
-        t_sym = (2 ** sf) / bw             # symbol time (s)
-        t_preamble = (n_preamble + 4.25) * t_sym
-
-        # Payload symbol count (explicit header, no low-data-rate optimization,
-        # CRC on — typical LoRaWAN uplink).
-        # Formula: n_payload = 8 + max(ceil((8*PL - 4*SF + 28 + 16) / (4*SF)) * (CR), 0)
-        import math
-        numerator = 8 * pl - 4 * sf + 28 + 16
-        denom     = 4 * sf
-        n_payload = 8 + max(math.ceil(numerator / denom) * cr, 0)
-        t_payload = n_payload * t_sym
-
+        t_sym      = (2 ** sf) / bw
+        t_preamble = (self.preamble_symbols + 4.25) * t_sym
+        numerator  = 8 * pl - 4 * sf + 28 + 16
+        denom      = 4 * sf
+        n_payload  = 8 + max(math.ceil(numerator / denom) * cr, 0)
+        t_payload  = n_payload * t_sym
         return t_preamble + t_payload
 
+    # Spec helper names
+    @property
+    def t_tx_lora(self) -> float:
+        """Per-frame LoRa TX airtime (seconds)."""
+        return self.airtime_per_frame_s()
 
-# ---------------------------------------------------------------------------
-# Event-processing timings (durations per event, not in GUI — proposed additions)
-# ---------------------------------------------------------------------------
+    @property
+    def t_rx_lora(self) -> float:
+        """Per-frame LoRa RX airtime (seconds) — equals TX airtime."""
+        return self.airtime_per_frame_s()
 
-@dataclass
-class EventTimings:
-    """How long each state lasts per event.
-
-    These values are NOT in the Configure Run GUI today. We suggest adding
-    them as a follow-up (see BATTERY_MATH.md §5). Meanwhile the defaults are
-    grounded in the AI pipeline's `inference_ms` field.
-    """
-    # Stage 1 (acoustic prefilter) is continuous at low power — rolled into
-    # the sensor's baseline `micListen`+`sleep` draw. Set >0 if you want an
-    # extra burst per candidate.
-    stage1_extra_working_s: float = 0.0
-
-    # Stage 2 (confirmation model) burst per candidate. When an AI event
-    # carries `inference_ms` we use that; this is the fallback.
-    stage2_default_working_s: float = 0.03   # 30ms — typical BirdNET-style inference
-
-    # Relay per-hop processing (routing decision). Small.
-    relay_routing_working_s: float = 0.005
+    @property
+    def t_hop_lora(self) -> float:
+        """Total LoRa hop time = t_tx_lora × frames_per_hop."""
+        return self.t_tx_lora * self.frames_per_hop
 
 
 # ---------------------------------------------------------------------------
@@ -235,11 +233,10 @@ class EventTimings:
 @dataclass
 class SimulationConfig:
     """Complete config bundle consumed by `BatterySimulator`."""
-    shaman_i:  NodeTypeConfig = field(default_factory=lambda: NodeTypeConfig.from_gui_payload(None, is_sensor=True))
-    shaman_ii: NodeTypeConfig = field(default_factory=lambda: NodeTypeConfig.from_gui_payload(None, is_sensor=False))
+    shaman_i:  ShamanIConfig  = field(default_factory=ShamanIConfig)
+    shaman_ii: ShamanIIConfig = field(default_factory=ShamanIIConfig)
     radio:     RadioConfig    = field(default_factory=RadioConfig)
-    timings:   EventTimings   = field(default_factory=EventTimings)
-    time_step_seconds: float  = 60.0   # time-series sampling resolution
+    time_step_seconds: float  = 60.0
 
     @classmethod
     def from_run_config(cls,
@@ -249,8 +246,8 @@ class SimulationConfig:
                         ) -> "SimulationConfig":
         """Build a SimulationConfig from the Configure Run modal payloads."""
         cfg = cls(
-            shaman_i  = NodeTypeConfig.from_gui_payload(shaman_i_config,  is_sensor=True),
-            shaman_ii = NodeTypeConfig.from_gui_payload(shaman_ii_config, is_sensor=False),
+            shaman_i  = ShamanIConfig.from_gui_payload(shaman_i_config),
+            shaman_ii = ShamanIIConfig.from_gui_payload(shaman_ii_config),
         )
         if radio_config:
             for k, v in radio_config.items():
