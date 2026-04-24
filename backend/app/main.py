@@ -6,7 +6,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import runs, network, ai
+from app.routes import runs, network, ai, battery
 from app.database import init_db
 from app.seed import seed
 
@@ -27,6 +27,7 @@ app.add_middleware(
 app.include_router(runs.router)
 app.include_router(network.router)
 app.include_router(ai.router)
+app.include_router(battery.router)
 
 
 @app.on_event("startup")
