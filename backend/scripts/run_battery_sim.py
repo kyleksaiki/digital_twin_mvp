@@ -148,9 +148,7 @@ def write_csv(result: dict, path: Path) -> None:
 def print_summary(result: dict) -> None:
     print(f"\nSimulation {result['simulation_id']}")
     print(f"  duration:   {result['duration_hours']:.2f} h")
-    print(f"  events:     {result['total_events']}  "
-          f"(confirmed={result['confirmed_events']}, "
-          f"candidates={result['candidate_events']})")
+    print(f"  events:     {result['total_events']}")
     r = result.get("radio", {})
     print(f"  radio:      SF{r.get('spreading_factor')} "
           f"BW{r.get('bandwidth_hz', 0)//1000}kHz "
@@ -165,8 +163,8 @@ def print_summary(result: dict) -> None:
         print(f"  {nid:<8}{nd['role']:<9}{nd['capacity_wh']:>8}"
               f"{sm['final_battery_percent']:>9}"
               f"{sm['energy_consumed_wh']:>11}"
-              f"{sm['events_detected']:>10}"
-              f"{sm['events_forwarded']:>8}")
+              f"{sm['n_local']:>10}"
+              f"{sm['n_forward']:>8}")
 
 
 def main():

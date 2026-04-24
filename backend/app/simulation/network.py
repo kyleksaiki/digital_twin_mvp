@@ -35,11 +35,10 @@ class SimNode:
     energy_wh: float = 22.0
     energy_consumed_wh: float = 0.0
 
-    # Event counts — spec variables (§2.5)
+    # Event counts (spec §2.5)
     n_local: int = 0              # events detected locally (sensors only)
     n_received_wifi: int = 0      # packets received from Shaman I children (WiFi)
     n_received_lora: int = 0      # packets received from Shaman II children (LoRa)
-    n_retries: int = 0            # CSMA retries accumulated on TX
 
     @property
     def n_received(self) -> int:
