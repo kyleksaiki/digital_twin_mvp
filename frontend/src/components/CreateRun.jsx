@@ -26,21 +26,25 @@ function CVP(current, voltage, power) {
 
 function ComponentPowerModel(batteryLife, components, isShamanII = false) {
   this.batteryLife = batteryLife;
-  this.components = components || (isShamanII ? {
-    sleep: new CVP(),
-    working: new CVP(),
-    transmit: new CVP(),
-    receive: new CVP(),
-  } : {
-    sleep: new CVP(),
-    working: new CVP(),
-    transmit: new CVP(),
-    receive: new CVP(),
-    cameraImage: new CVP(),
-    cameraSleep: new CVP(),
-    micListen: new CVP(),
-    micSleep: new CVP(),
-  });
+  this.components =
+    components ||
+    (isShamanII
+      ? {
+          sleep: new CVP(),
+          working: new CVP(),
+          transmit: new CVP(),
+          receive: new CVP(),
+        }
+      : {
+          sleep: new CVP(),
+          working: new CVP(),
+          transmit: new CVP(),
+          receive: new CVP(),
+          cameraImage: new CVP(),
+          cameraSleep: new CVP(),
+          micListen: new CVP(),
+          micSleep: new CVP(),
+        });
 }
 
 const REAL_COORD_BOUNDS = Object.freeze({
@@ -57,12 +61,16 @@ function clamp(value, min, max) {
 function normalizedToRealCoordinates(x, y) {
   return {
     realX: Number(
-      (REAL_COORD_BOUNDS.minX +
-        x * (REAL_COORD_BOUNDS.maxX - REAL_COORD_BOUNDS.minX)).toFixed(2),
+      (
+        REAL_COORD_BOUNDS.minX +
+        x * (REAL_COORD_BOUNDS.maxX - REAL_COORD_BOUNDS.minX)
+      ).toFixed(2),
     ),
     realY: Number(
-      (REAL_COORD_BOUNDS.minY +
-        y * (REAL_COORD_BOUNDS.maxY - REAL_COORD_BOUNDS.minY)).toFixed(2),
+      (
+        REAL_COORD_BOUNDS.minY +
+        y * (REAL_COORD_BOUNDS.maxY - REAL_COORD_BOUNDS.minY)
+      ).toFixed(2),
     ),
   };
 }
@@ -312,18 +320,18 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     if (mapImageRef.current) {
       ctx.save();
       ctx.globalAlpha = 1;
-      
+
       // Map dimensions in normalized coordinates (-0.5 to 0.5)
       const mapSize = 2;
       const mapX = -mapSize / 2;
       const mapY = -mapSize / 2;
-      
+
       // Convert to screen coordinates with pan/zoom
       const screenX = mapX * w * s.zoom + w / 2 + s.panX;
       const screenY = mapY * h * s.zoom + h / 2 + s.panY;
       const screenW = mapSize * w * s.zoom;
       const screenH = mapSize * h * s.zoom;
-      
+
       ctx.drawImage(mapImageRef.current, screenX, screenY, screenW, screenH);
       ctx.restore();
     }
@@ -410,7 +418,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       if (hl) {
         ctx.beginPath();
         ctx.arc(x, y, sz + 10 * s.zoom, 0, Math.PI * 2);
-        ctx.fillStyle = isConnecting ? "rgba(0, 230, 138, 0.9)" : "rgba(0,0,0,0.06)";
+        ctx.fillStyle = isConnecting
+          ? "rgba(0, 230, 138, 0.9)"
+          : "rgba(0,0,0,0.06)";
         ctx.fill();
       }
 
@@ -421,7 +431,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         ctx.arc(x, y, sz, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
-        ctx.strokeStyle = isConnecting ? "rgba(0, 230, 138, 0.95)" : "rgba(0,0,0,0.18)";
+        ctx.strokeStyle = isConnecting
+          ? "rgba(0, 230, 138, 0.95)"
+          : "rgba(0,0,0,0.18)";
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(x, y, sz * 0.35, 0, Math.PI * 2);
@@ -438,7 +450,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         ctx.closePath();
         ctx.fillStyle = color;
         ctx.fill();
-        ctx.strokeStyle = isConnecting ? "rgba(0, 230, 138, 0.95)" : "rgba(0,0,0,0.18)";
+        ctx.strokeStyle = isConnecting
+          ? "rgba(0, 230, 138, 0.95)"
+          : "rgba(0,0,0,0.18)";
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(x, y, 3 * s.zoom, 0, Math.PI * 2);
@@ -453,7 +467,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         ctx.closePath();
         ctx.fillStyle = color;
         ctx.fill();
-        ctx.strokeStyle = isConnecting ? "rgba(0, 230, 138, 0.95)" : "rgba(0,0,0,0.18)";
+        ctx.strokeStyle = isConnecting
+          ? "rgba(0, 230, 138, 0.95)"
+          : "rgba(0,0,0,0.18)";
         ctx.stroke();
         ctx.beginPath();
         ctx.arc(x, y + h * 0.05, 2.5 * s.zoom, 0, Math.PI * 2);
@@ -777,7 +793,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
 
     // Create run data
     const runData = {
-      name: runName || `Run-${new Date().toISOString().split("T")[0]}-${Date.now() % 10000}`,
+      name:
+        runName ||
+        `Run-${new Date().toISOString().split("T")[0]}-${Date.now() % 10000}`,
       scenario: "MVP Simulation",
       shamani: shamanIProcessor,
       shamanii: shamanIIProcessor,
@@ -936,7 +954,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       </div>
 
       {/* Zoom controls (top-right) */}
-      <div className={`map-cursor-popup ${mouseCoords.visible ? "visible" : ""}`}>
+      <div
+        className={`map-cursor-popup ${mouseCoords.visible ? "visible" : ""}`}
+      >
         <div className="map-cursor-row">X: {mouseCoords.x}</div>
         <div className="map-cursor-row">Y: {mouseCoords.y}</div>
       </div>
@@ -1112,9 +1132,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                   ? "Power Configuration: Shaman I"
                   : configStep === 2
                     ? "Power Configuration: Shaman II"
-                    : configStep === 3 ? 
-                    "Connect Media Files" : 
-                    "Configure Details"}
+                    : configStep === 3
+                      ? "Connect Media Files"
+                      : "Configure Details"}
               </div>
               <button
                 className="modal-close"
@@ -1127,9 +1147,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
               {/* Step 1: Shaman I Power Config */}
               {configStep === 1 && (
                 <div className="modal-section">
-                  <div className="modal-label">
-                    Shaman I Configuration
-                  </div>
+                  <div className="modal-label">Shaman I Configuration</div>
 
                   <div className="scp-input-group">
                     <label className="scp-label">Processor:</label>
@@ -1196,13 +1214,19 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                           <th style={{ padding: "8px 4px", textAlign: "left" }}>
                             Component
                           </th>
-                          <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                          <th
+                            style={{ padding: "8px 4px", textAlign: "right" }}
+                          >
                             Current (mA)
                           </th>
-                          <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                          <th
+                            style={{ padding: "8px 4px", textAlign: "right" }}
+                          >
                             Voltage (V)
                           </th>
-                          <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                          <th
+                            style={{ padding: "8px 4px", textAlign: "right" }}
+                          >
                             Power (W)
                           </th>
                         </tr>
@@ -1216,7 +1240,12 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                                 borderBottom: "1px solid var(--border-muted)",
                               }}
                             >
-                              <td style={{ padding: "8px 4px", color: "var(--text-primary)" }}>
+                              <td
+                                style={{
+                                  padding: "8px 4px",
+                                  color: "var(--text-primary)",
+                                }}
+                              >
                                 {formatComponentLabel(name)}
                               </td>
                               <td style={{ padding: "4px" }}>
@@ -1300,9 +1329,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
               {/* Step 2: Shaman II Power Config */}
               {configStep === 2 && (
                 <div className="modal-section">
-                  <div className="modal-label">
-                    Shaman II Configuration
-                  </div>
+                  <div className="modal-label">Shaman II Configuration</div>
 
                   <div className="scp-input-group">
                     <label className="scp-label">Processor:</label>
@@ -1369,13 +1396,19 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                           <th style={{ padding: "8px 4px", textAlign: "left" }}>
                             Component
                           </th>
-                          <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                          <th
+                            style={{ padding: "8px 4px", textAlign: "right" }}
+                          >
                             Current (mA)
                           </th>
-                          <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                          <th
+                            style={{ padding: "8px 4px", textAlign: "right" }}
+                          >
                             Voltage (V)
                           </th>
-                          <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                          <th
+                            style={{ padding: "8px 4px", textAlign: "right" }}
+                          >
                             Power (W)
                           </th>
                         </tr>
@@ -1389,7 +1422,12 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                                 borderBottom: "1px solid var(--border-muted)",
                               }}
                             >
-                              <td style={{ padding: "8px 4px", color: "var(--text-primary)" }}>
+                              <td
+                                style={{
+                                  padding: "8px 4px",
+                                  color: "var(--text-primary)",
+                                }}
+                              >
                                 {formatComponentLabel(name)}
                               </td>
                               <td style={{ padding: "4px" }}>
@@ -1474,50 +1512,56 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
               {configStep === 3 && (
                 <div className="modal-section">
                   <div className="modal-label">
-                    Select audio/video files for each node
+                    Select audio/video files for Shaman I nodes
                   </div>
-                  {nodes.map((node) => (
-                    <div key={node.id} className="modal-file-group">
-                      <label className="modal-file-label">
-                        {node.id} — {node.label}
-                      </label>
-                      <input
-                        type="file"
-                        className="modal-file-input"
-                        accept="audio/*,video/*"
-                        onChange={(e) =>
-                          handleMediaFileChange(node.id, e.target.files?.[0])
-                        }
-                      />
-                      {mediaFiles[node.id] && (
-                        <div className="modal-file-selected">
-                          ✓ {mediaFiles[node.id]}
+                  {nodes.map(
+                    (node) => 
+                      (node.label.includes("Shaman I ")) ? (
+                        <div key={node.id} className="modal-file-group">
+                          <label className="modal-file-label">
+                            {node.id} — {node.label}
+                          </label>
+                          <input
+                            type="file"
+                            className="modal-file-input"
+                            accept="audio/*,video/*"
+                            onChange={(e) =>
+                              handleMediaFileChange(
+                                node.id,
+                                e.target.files?.[0],
+                              )
+                            }
+                          />
+                          {mediaFiles[node.id] && (
+                            <div className="modal-file-selected">
+                              ✓ {mediaFiles[node.id]}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      ) : null
+                  )}
                 </div>
               )}
 
               {/* Step 4: Details */}
               {configStep === 4 && (
                 <div className="modal-section">
-                  <div className="modal-label">
-                    Configure Run Details
-                  </div>
+                  <div className="modal-label">Configure Run Details</div>
                   <div className="scp-input-group">
                     <label className="scp-label">Run Name:</label>
                     <input
                       className="scp-input"
                       value={runName}
-                      onChange={(e) =>
-                        setRunName(e.target.value)
-                      }
+                      onChange={(e) => setRunName(e.target.value)}
                     />
                   </div>
-                  <div style={{ fontSize: "11px", color: "var(--text-muted)", lineHeight: "1.5" }}>
-                    
-                  </div>
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: "var(--text-muted)",
+                      lineHeight: "1.5",
+                    }}
+                  ></div>
                 </div>
               )}
             </div>
