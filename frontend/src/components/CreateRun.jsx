@@ -1,5 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRun } from "../api";
+import {
+  OSA_MAP_BOUNDS,
+  latLonToNormalized,
+  normalizedToLatLon,
+} from "../utils/coordinates";
+import ModalStepper from "./common/ModalStepper";
+import useStepNavigator from "../hooks/useStepNavigator";
 
 /**
  * CreateRun - Interactive topology design canvas for creating new simulation runs
@@ -47,42 +54,8 @@ function ComponentPowerModel(batteryLife, components, isShamanII = false) {
         });
 }
 
-const REAL_COORD_BOUNDS = Object.freeze({
-  minX: 0,
-  maxX: 1000,
-  minY: 0,
-  maxY: 1000,
-});
-
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
-}
-
-function normalizedToRealCoordinates(x, y) {
-  return {
-    realX: Number(
-      (
-        REAL_COORD_BOUNDS.minX +
-        x * (REAL_COORD_BOUNDS.maxX - REAL_COORD_BOUNDS.minX)
-      ).toFixed(2),
-    ),
-    realY: Number(
-      (
-        REAL_COORD_BOUNDS.minY +
-        y * (REAL_COORD_BOUNDS.maxY - REAL_COORD_BOUNDS.minY)
-      ).toFixed(2),
-    ),
-  };
-}
-
-function realToNormalizedCoordinates(realX, realY) {
-  const xRange = REAL_COORD_BOUNDS.maxX - REAL_COORD_BOUNDS.minX || 1;
-  const yRange = REAL_COORD_BOUNDS.maxY - REAL_COORD_BOUNDS.minY || 1;
-
-  return {
-    x: clamp((realX - REAL_COORD_BOUNDS.minX) / xRange, 0, 1),
-    y: clamp((realY - REAL_COORD_BOUNDS.minY) / yRange, 0, 1),
-  };
 }
 
 export default function CreateRun({ onNavigate, onRunCreated }) {
@@ -103,17 +76,16 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   const [shamanIIProcessor, setShamanIIProcessor] = useState("Radxa Zero");
   const [mediaFiles, setMediaFiles] = useState({});
   const [workflow, setWorkflow] = useState("design"); // "design" | "configure" | "loading" | "confirm"
-  const [configStep, setConfigStep] = useState(1); // 1 | 2 | 3 | 4
   const [isLoading, setIsLoading] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
   const [runName, setRunName] = useState(null);
   const [coordNodeType, setCoordNodeType] = useState("sensor");
-  const [coordX, setCoordX] = useState("");
-  const [coordY, setCoordY] = useState("");
+  const [coordLat, setCoordLat] = useState("");
+  const [coordLon, setCoordLon] = useState("");
   const [coordError, setCoordError] = useState("");
   const [mouseCoords, setMouseCoords] = useState({
-    x: REAL_COORD_BOUNDS.minX,
-    y: REAL_COORD_BOUNDS.minY,
+    lat: OSA_MAP_BOUNDS.latMax,
+    lon: OSA_MAP_BOUNDS.lonMin,
     visible: false,
   });
 
@@ -499,7 +471,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     return false;
   }
 
-  function buildNode(role, x, y, realX = null, realY = null) {
+  function buildNode(role, x, y, lat = null, lon = null) {
     const s = stateRef.current;
     s.nodeCounter[role]++;
 
@@ -511,9 +483,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
           : `S${s.nodeCounter.sensor}`;
 
     const resolvedCoordinates =
-      Number.isFinite(realX) && Number.isFinite(realY)
-        ? { realX, realY }
-        : normalizedToRealCoordinates(x, y);
+      Number.isFinite(lat) && Number.isFinite(lon)
+        ? { lat, lon }
+        : normalizedToLatLon(x, y);
 
     return {
       id,
@@ -526,8 +498,10 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       role,
       x,
       y,
-      realX: resolvedCoordinates.realX,
-      realY: resolvedCoordinates.realY,
+      lat: resolvedCoordinates.lat,
+      lon: resolvedCoordinates.lon,
+      realX: resolvedCoordinates.lat,
+      realY: resolvedCoordinates.lon,
     };
   }
 
@@ -606,17 +580,17 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
 
     const normalizedX = clamp((mx - w / 2 - s.panX) / (s.zoom * w) + 0.5, 0, 1);
     const normalizedY = clamp((my - h / 2 - s.panY) / (s.zoom * h) + 0.5, 0, 1);
-    const realCoords = normalizedToRealCoordinates(normalizedX, normalizedY);
+    const realCoords = normalizedToLatLon(normalizedX, normalizedY);
 
     setMouseCoords((prev) => {
       if (
         prev.visible &&
-        prev.x === realCoords.realX &&
-        prev.y === realCoords.realY
+        prev.lat === realCoords.lat &&
+        prev.lon === realCoords.lon
       ) {
         return prev;
       }
-      return { x: realCoords.realX, y: realCoords.realY, visible: true };
+      return { lat: realCoords.lat, lon: realCoords.lon, visible: true };
     });
 
     s.lastMouseX = mx;
@@ -758,28 +732,28 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   }
 
   function insertNodeAtRealCoordinate() {
-    const parsedX = Number(coordX);
-    const parsedY = Number(coordY);
+    const parsedLat = Number(coordLat);
+    const parsedLon = Number(coordLon);
 
-    if (!Number.isFinite(parsedX) || !Number.isFinite(parsedY)) {
+    if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLon)) {
       setCoordError("Enter valid numeric coordinates.");
       return;
     }
 
     if (
-      parsedX < REAL_COORD_BOUNDS.minX ||
-      parsedX > REAL_COORD_BOUNDS.maxX ||
-      parsedY < REAL_COORD_BOUNDS.minY ||
-      parsedY > REAL_COORD_BOUNDS.maxY
+      parsedLat < OSA_MAP_BOUNDS.latMin ||
+      parsedLat > OSA_MAP_BOUNDS.latMax ||
+      parsedLon < OSA_MAP_BOUNDS.lonMin ||
+      parsedLon > OSA_MAP_BOUNDS.lonMax
     ) {
       setCoordError(
-        `Coordinates must be within ${REAL_COORD_BOUNDS.minX}-${REAL_COORD_BOUNDS.maxX} (X) and ${REAL_COORD_BOUNDS.minY}-${REAL_COORD_BOUNDS.maxY} (Y).`,
+        `Coordinates must be within ${OSA_MAP_BOUNDS.latMin}-${OSA_MAP_BOUNDS.latMax} (lat) and ${OSA_MAP_BOUNDS.lonMin}-${OSA_MAP_BOUNDS.lonMax} (lon).`,
       );
       return;
     }
 
-    const { x, y } = realToNormalizedCoordinates(parsedX, parsedY);
-    const newNode = buildNode(coordNodeType, x, y, parsedX, parsedY);
+    const { x, y } = latLonToNormalized(parsedLat, parsedLon);
+    const newNode = buildNode(coordNodeType, x, y, parsedLat, parsedLon);
     setNodes((prevNodes) => [...prevNodes, newNode]);
     setCoordError("");
   }
@@ -807,10 +781,10 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         role: n.role,
         x: n.x,
         y: n.y,
-        realX: n.realX ?? null,
-        realY: n.realY ?? null,
-        lat: n.realX ?? null,
-        lon: n.realY ?? null,
+        realX: n.lat ?? n.realX ?? null,
+        realY: n.lon ?? n.realY ?? null,
+        lat: n.lat ?? n.realX ?? null,
+        lon: n.lon ?? n.realY ?? null,
       })),
       edges: edges.map((e) => ({
         from: e.from,
@@ -842,13 +816,13 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   function closeConfirmation() {
     // Reset workflow
     setWorkflow("design");
-    setConfigStep(1);
+    resetConfigSteps();
     setConfirmMessage("");
     setNodes([]);
     setEdges([]);
     setMediaFiles({});
-    setCoordX("");
-    setCoordY("");
+    setCoordLat("");
+    setCoordLon("");
     setCoordError("");
     setShamanIConfig(new ComponentPowerModel(30));
     setShamanIIConfig(new ComponentPowerModel());
@@ -875,6 +849,426 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     stateRef.current.panX = 0;
     stateRef.current.panY = 0;
   }
+
+  const configSteps = [
+    {
+      id: "shamanI",
+      title: "Power Configuration: Shaman I",
+      content: (
+        <div className="modal-section">
+          <div className="modal-label">Shaman I Configuration</div>
+
+          <div className="scp-input-group">
+            <label className="scp-label">Processor:</label>
+            <select
+              className="scp-input"
+              value={shamanIProcessor}
+              onChange={(e) => setShamanIProcessor(e.target.value)}
+            >
+              <option value="ESP32">ESP32</option>
+              <option value="Radxa Zero">Radxa Zero</option>
+              <option value="Raspberry Pi">Raspberry Pi</option>
+              <option value="Custom">Custom</option>
+            </select>
+          </div>
+
+          <div className="scp-input-group">
+            <label className="scp-label">Component Power Model</label>
+          </div>
+          <div
+            style={{
+              fontSize: "10px",
+              color: "var(--text-muted)",
+              marginBottom: "12px",
+              lineHeight: "1.4",
+            }}
+          >
+            Enter <strong>Current (mA) + Voltage (V)</strong> OR just{" "}
+            <strong>Power (W)</strong> for each component.
+          </div>
+
+          <div className="scp-input-group">
+            <label className="scp-label">Battery Capacity (Wh):</label>
+            <input
+              type="number"
+              className="scp-input"
+              value={shamanIConfig.batteryLife}
+              onChange={(e) =>
+                setShamanIConfig(
+                  new ComponentPowerModel(
+                    e.target.value,
+                    shamanIConfig.components,
+                  ),
+                )
+              }
+              step="0.1"
+            />
+          </div>
+
+          <div style={{ overflowX: "auto", marginTop: "12px" }}>
+            <table
+              style={{
+                width: "100%",
+                fontSize: "10px",
+                borderCollapse: "collapse",
+              }}
+            >
+              <thead>
+                <tr
+                  style={{
+                    borderBottom: "1px solid var(--border)",
+                    fontWeight: "600",
+                  }}
+                >
+                  <th style={{ padding: "8px 4px", textAlign: "left" }}>
+                    Component
+                  </th>
+                  <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                    Current (mA)
+                  </th>
+                  <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                    Voltage (V)
+                  </th>
+                  <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                    Power (W)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(shamanIConfig.components).map(
+                  ([name, cvp]) => (
+                    <tr
+                      key={name}
+                      style={{
+                        borderBottom: "1px solid var(--border-muted)",
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding: "8px 4px",
+                          color: "var(--text-primary)",
+                        }}
+                      >
+                        {formatComponentLabel(name)}
+                      </td>
+                      <td style={{ padding: "4px" }}>
+                        <input
+                          type="number"
+                          className="scp-input"
+                          placeholder="—"
+                          value={cvp.current ?? ""}
+                          onChange={(e) => {
+                            const newVal = e.target.value
+                              ? parseFloat(e.target.value)
+                              : null;
+                            shamanIConfig.components[name].current = newVal;
+                            setShamanIConfig(
+                              new ComponentPowerModel(
+                                shamanIConfig.batteryLife,
+                                { ...shamanIConfig.components },
+                              ),
+                            );
+                          }}
+                          step="0.1"
+                          style={{ width: "100%" }}
+                        />
+                      </td>
+                      <td style={{ padding: "4px" }}>
+                        <input
+                          type="number"
+                          className="scp-input"
+                          placeholder="—"
+                          value={cvp.voltage ?? ""}
+                          onChange={(e) => {
+                            const newVal = e.target.value
+                              ? parseFloat(e.target.value)
+                              : null;
+                            shamanIConfig.components[name].voltage = newVal;
+                            setShamanIConfig(
+                              new ComponentPowerModel(
+                                shamanIConfig.batteryLife,
+                                { ...shamanIConfig.components },
+                              ),
+                            );
+                          }}
+                          step="0.1"
+                          style={{ width: "100%" }}
+                        />
+                      </td>
+                      <td style={{ padding: "4px" }}>
+                        <input
+                          type="number"
+                          className="scp-input"
+                          placeholder="—"
+                          value={cvp.power ?? ""}
+                          onChange={(e) => {
+                            const newVal = e.target.value
+                              ? parseFloat(e.target.value)
+                              : null;
+                            shamanIConfig.components[name].power = newVal;
+                            setShamanIConfig(
+                              new ComponentPowerModel(
+                                shamanIConfig.batteryLife,
+                                { ...shamanIConfig.components },
+                              ),
+                            );
+                          }}
+                          step="0.001"
+                          style={{ width: "100%" }}
+                        />
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "shamanII",
+      title: "Power Configuration: Shaman II",
+      content: (
+        <div className="modal-section">
+          <div className="modal-label">Shaman II Configuration</div>
+
+          <div className="scp-input-group">
+            <label className="scp-label">Processor:</label>
+            <select
+              className="scp-input"
+              value={shamanIIProcessor}
+              onChange={(e) => setShamanIIProcessor(e.target.value)}
+            >
+              <option value="ESP32">ESP32</option>
+              <option value="Radxa Zero">Radxa Zero</option>
+              <option value="Raspberry Pi">Raspberry Pi</option>
+              <option value="Custom">Custom</option>
+            </select>
+          </div>
+
+          <div className="scp-input-group">
+            <label className="scp-label">Component Power Model</label>
+          </div>
+          <div
+            style={{
+              fontSize: "10px",
+              color: "var(--text-muted)",
+              marginBottom: "12px",
+              lineHeight: "1.4",
+            }}
+          >
+            Enter <strong>Current (mA) + Voltage (V)</strong> OR just{" "}
+            <strong>Power (W)</strong> for each component.
+          </div>
+
+          <div className="scp-input-group">
+            <label className="scp-label">Battery Capacity (Wh):</label>
+            <input
+              type="number"
+              className="scp-input"
+              value={shamanIIConfig.batteryLife}
+              onChange={(e) =>
+                setShamanIIConfig(
+                  new ComponentPowerModel(
+                    e.target.value,
+                    shamanIIConfig.components,
+                  ),
+                )
+              }
+              step="0.1"
+            />
+          </div>
+
+          <div style={{ overflowX: "auto", marginTop: "12px" }}>
+            <table
+              style={{
+                width: "100%",
+                fontSize: "10px",
+                borderCollapse: "collapse",
+              }}
+            >
+              <thead>
+                <tr
+                  style={{
+                    borderBottom: "1px solid var(--border)",
+                    fontWeight: "600",
+                  }}
+                >
+                  <th style={{ padding: "8px 4px", textAlign: "left" }}>
+                    Component
+                  </th>
+                  <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                    Current (mA)
+                  </th>
+                  <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                    Voltage (V)
+                  </th>
+                  <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                    Power (W)
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(shamanIIConfig.components).map(
+                  ([name, cvp]) => (
+                    <tr
+                      key={name}
+                      style={{
+                        borderBottom: "1px solid var(--border-muted)",
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding: "8px 4px",
+                          color: "var(--text-primary)",
+                        }}
+                      >
+                        {formatComponentLabel(name)}
+                      </td>
+                      <td style={{ padding: "4px" }}>
+                        <input
+                          type="number"
+                          className="scp-input"
+                          placeholder="—"
+                          value={cvp.current ?? ""}
+                          onChange={(e) => {
+                            const newVal = e.target.value
+                              ? parseFloat(e.target.value)
+                              : null;
+                            shamanIIConfig.components[name].current = newVal;
+                            setShamanIIConfig(
+                              new ComponentPowerModel(
+                                shamanIIConfig.batteryLife,
+                                { ...shamanIIConfig.components },
+                              ),
+                            );
+                          }}
+                          step="0.1"
+                          style={{ width: "100%" }}
+                        />
+                      </td>
+                      <td style={{ padding: "4px" }}>
+                        <input
+                          type="number"
+                          className="scp-input"
+                          placeholder="—"
+                          value={cvp.voltage ?? ""}
+                          onChange={(e) => {
+                            const newVal = e.target.value
+                              ? parseFloat(e.target.value)
+                              : null;
+                            shamanIIConfig.components[name].voltage = newVal;
+                            setShamanIIConfig(
+                              new ComponentPowerModel(
+                                shamanIIConfig.batteryLife,
+                                { ...shamanIIConfig.components },
+                              ),
+                            );
+                          }}
+                          step="0.1"
+                          style={{ width: "100%" }}
+                        />
+                      </td>
+                      <td style={{ padding: "4px" }}>
+                        <input
+                          type="number"
+                          className="scp-input"
+                          placeholder="—"
+                          value={cvp.power ?? ""}
+                          onChange={(e) => {
+                            const newVal = e.target.value
+                              ? parseFloat(e.target.value)
+                              : null;
+                            shamanIIConfig.components[name].power = newVal;
+                            setShamanIIConfig(
+                              new ComponentPowerModel(
+                                shamanIIConfig.batteryLife,
+                                { ...shamanIIConfig.components },
+                              ),
+                            );
+                          }}
+                          step="0.001"
+                          style={{ width: "100%" }}
+                        />
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "media",
+      title: "Connect Media Files",
+      content: (
+        <div className="modal-section">
+          <div className="modal-label">
+            Select audio/video files for Shaman I nodes
+          </div>
+          {nodes
+            .filter((node) => node.label.includes("Shaman I "))
+            .map((node) => (
+              <div key={node.id} className="modal-file-group">
+                <label className="modal-file-label">
+                  {node.id} — {node.label}
+                </label>
+                <input
+                  type="file"
+                  className="modal-file-input"
+                  accept="audio/*,video/*"
+                  onChange={(e) =>
+                    handleMediaFileChange(node.id, e.target.files?.[0])
+                  }
+                />
+                {mediaFiles[node.id] && (
+                  <div className="modal-file-selected">
+                    ✓ {mediaFiles[node.id]}
+                  </div>
+                )}
+              </div>
+            ))}
+        </div>
+      ),
+    },
+    {
+      id: "details",
+      title: "Configure Details",
+      content: (
+        <div className="modal-section">
+          <div className="modal-label">Configure Run Details</div>
+          <div className="scp-input-group">
+            <label className="scp-label">Run Name:</label>
+            <input
+              className="scp-input"
+              value={runName}
+              onChange={(e) => setRunName(e.target.value)}
+            />
+          </div>
+          <div
+            style={{
+              fontSize: "11px",
+              color: "var(--text-muted)",
+              lineHeight: "1.5",
+            }}
+          ></div>
+        </div>
+      ),
+    },
+  ];
+
+  const {
+    activeIndex: configStepIndex,
+    goToStep: goToConfigStep,
+    next: nextConfigStep,
+    prev: prevConfigStep,
+    reset: resetConfigSteps,
+    isFirst: isConfigFirst,
+    isLast: isConfigLast,
+  } = useStepNavigator(configSteps.length, 0);
 
   return (
     <div
@@ -917,7 +1311,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
           + Shaman I
         </button>
 
-        <div className="coord-panel-title">Insert at Real Coordinate</div>
+        <div className="coord-panel-title">Insert at Lat/Lon</div>
         <select
           className="coord-input"
           value={coordNodeType}
@@ -930,16 +1324,16 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         <input
           className="coord-input"
           type="number"
-          placeholder={`X (${REAL_COORD_BOUNDS.minX}-${REAL_COORD_BOUNDS.maxX})`}
-          value={coordX}
-          onChange={(e) => setCoordX(e.target.value)}
+          placeholder={`Lat (${OSA_MAP_BOUNDS.latMin} to ${OSA_MAP_BOUNDS.latMax})`}
+          value={coordLat}
+          onChange={(e) => setCoordLat(e.target.value)}
         />
         <input
           className="coord-input"
           type="number"
-          placeholder={`Y (${REAL_COORD_BOUNDS.minY}-${REAL_COORD_BOUNDS.maxY})`}
-          value={coordY}
-          onChange={(e) => setCoordY(e.target.value)}
+          placeholder={`Lon (${OSA_MAP_BOUNDS.lonMin} to ${OSA_MAP_BOUNDS.lonMax})`}
+          value={coordLon}
+          onChange={(e) => setCoordLon(e.target.value)}
         />
         <button className="toolbar-btn" onClick={insertNodeAtRealCoordinate}>
           Insert Node
@@ -957,8 +1351,8 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       <div
         className={`map-cursor-popup ${mouseCoords.visible ? "visible" : ""}`}
       >
-        <div className="map-cursor-row">X: {mouseCoords.x}</div>
-        <div className="map-cursor-row">Y: {mouseCoords.y}</div>
+        <div className="map-cursor-row">Lat: {mouseCoords.lat}</div>
+        <div className="map-cursor-row">Lon: {mouseCoords.lon}</div>
       </div>
 
       <div className="map-zoom">
@@ -1093,7 +1487,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
             className="workflow-btn"
             onClick={() => {
               setWorkflow("configure");
-              setConfigStep(1);
+              resetConfigSteps();
             }}
             style={{
               background: "var(--green)",
@@ -1122,458 +1516,28 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         </div>
       )}
 
-      {/* Unified Configuration Modal - 3 Steps */}
+      {/* Configuration Wizard */}
       {workflow === "configure" && (
-        <div className="modal-overlay">
-          <div className="modal-dialog">
-            <div className="modal-header">
-              <div className="modal-title">
-                {configStep === 1
-                  ? "Power Configuration: Shaman I"
-                  : configStep === 2
-                    ? "Power Configuration: Shaman II"
-                    : configStep === 3
-                      ? "Connect Media Files"
-                      : "Configure Details"}
-              </div>
-              <button
-                className="modal-close"
-                onClick={() => setWorkflow("design")}
-              >
-                ✕
-              </button>
-            </div>
-            <div className="modal-body">
-              {/* Step 1: Shaman I Power Config */}
-              {configStep === 1 && (
-                <div className="modal-section">
-                  <div className="modal-label">Shaman I Configuration</div>
-
-                  <div className="scp-input-group">
-                    <label className="scp-label">Processor:</label>
-                    <select
-                      className="scp-input"
-                      value={shamanIProcessor}
-                      onChange={(e) => setShamanIProcessor(e.target.value)}
-                    >
-                      <option value="ESP32">ESP32</option>
-                      <option value="Radxa Zero">Radxa Zero</option>
-                      <option value="Raspberry Pi">Raspberry Pi</option>
-                      <option value="Custom">Custom</option>
-                    </select>
-                  </div>
-
-                  <div className="scp-input-group">
-                    <label className="scp-label">Component Power Model</label>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "10px",
-                      color: "var(--text-muted)",
-                      marginBottom: "12px",
-                      lineHeight: "1.4",
-                    }}
-                  >
-                    Enter <strong>Current (mA) + Voltage (V)</strong> OR just{" "}
-                    <strong>Power (W)</strong> for each component.
-                  </div>
-
-                  <div className="scp-input-group">
-                    <label className="scp-label">Battery Capacity (Wh):</label>
-                    <input
-                      type="number"
-                      className="scp-input"
-                      value={shamanIConfig.batteryLife}
-                      onChange={(e) =>
-                        setShamanIConfig(
-                          new ComponentPowerModel(
-                            e.target.value,
-                            shamanIConfig.components,
-                          ),
-                        )
-                      }
-                      step="0.1"
-                    />
-                  </div>
-
-                  <div style={{ overflowX: "auto", marginTop: "12px" }}>
-                    <table
-                      style={{
-                        width: "100%",
-                        fontSize: "10px",
-                        borderCollapse: "collapse",
-                      }}
-                    >
-                      <thead>
-                        <tr
-                          style={{
-                            borderBottom: "1px solid var(--border)",
-                            fontWeight: "600",
-                          }}
-                        >
-                          <th style={{ padding: "8px 4px", textAlign: "left" }}>
-                            Component
-                          </th>
-                          <th
-                            style={{ padding: "8px 4px", textAlign: "right" }}
-                          >
-                            Current (mA)
-                          </th>
-                          <th
-                            style={{ padding: "8px 4px", textAlign: "right" }}
-                          >
-                            Voltage (V)
-                          </th>
-                          <th
-                            style={{ padding: "8px 4px", textAlign: "right" }}
-                          >
-                            Power (W)
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(shamanIConfig.components).map(
-                          ([name, cvp]) => (
-                            <tr
-                              key={name}
-                              style={{
-                                borderBottom: "1px solid var(--border-muted)",
-                              }}
-                            >
-                              <td
-                                style={{
-                                  padding: "8px 4px",
-                                  color: "var(--text-primary)",
-                                }}
-                              >
-                                {formatComponentLabel(name)}
-                              </td>
-                              <td style={{ padding: "4px" }}>
-                                <input
-                                  type="number"
-                                  className="scp-input"
-                                  placeholder="—"
-                                  value={cvp.current ?? ""}
-                                  onChange={(e) => {
-                                    const newVal = e.target.value
-                                      ? parseFloat(e.target.value)
-                                      : null;
-                                    shamanIConfig.components[name].current =
-                                      newVal;
-                                    setShamanIConfig(
-                                      new ComponentPowerModel(
-                                        shamanIConfig.batteryLife,
-                                        { ...shamanIConfig.components },
-                                      ),
-                                    );
-                                  }}
-                                  step="0.1"
-                                  style={{ width: "100%" }}
-                                />
-                              </td>
-                              <td style={{ padding: "4px" }}>
-                                <input
-                                  type="number"
-                                  className="scp-input"
-                                  placeholder="—"
-                                  value={cvp.voltage ?? ""}
-                                  onChange={(e) => {
-                                    const newVal = e.target.value
-                                      ? parseFloat(e.target.value)
-                                      : null;
-                                    shamanIConfig.components[name].voltage =
-                                      newVal;
-                                    setShamanIConfig(
-                                      new ComponentPowerModel(
-                                        shamanIConfig.batteryLife,
-                                        { ...shamanIConfig.components },
-                                      ),
-                                    );
-                                  }}
-                                  step="0.1"
-                                  style={{ width: "100%" }}
-                                />
-                              </td>
-                              <td style={{ padding: "4px" }}>
-                                <input
-                                  type="number"
-                                  className="scp-input"
-                                  placeholder="—"
-                                  value={cvp.power ?? ""}
-                                  onChange={(e) => {
-                                    const newVal = e.target.value
-                                      ? parseFloat(e.target.value)
-                                      : null;
-                                    shamanIConfig.components[name].power =
-                                      newVal;
-                                    setShamanIConfig(
-                                      new ComponentPowerModel(
-                                        shamanIConfig.batteryLife,
-                                        { ...shamanIConfig.components },
-                                      ),
-                                    );
-                                  }}
-                                  step="0.001"
-                                  style={{ width: "100%" }}
-                                />
-                              </td>
-                            </tr>
-                          ),
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 2: Shaman II Power Config */}
-              {configStep === 2 && (
-                <div className="modal-section">
-                  <div className="modal-label">Shaman II Configuration</div>
-
-                  <div className="scp-input-group">
-                    <label className="scp-label">Processor:</label>
-                    <select
-                      className="scp-input"
-                      value={shamanIIProcessor}
-                      onChange={(e) => setShamanIIProcessor(e.target.value)}
-                    >
-                      <option value="ESP32">ESP32</option>
-                      <option value="Radxa Zero">Radxa Zero</option>
-                      <option value="Raspberry Pi">Raspberry Pi</option>
-                      <option value="Custom">Custom</option>
-                    </select>
-                  </div>
-
-                  <div className="scp-input-group">
-                    <label className="scp-label">Component Power Model</label>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "10px",
-                      color: "var(--text-muted)",
-                      marginBottom: "12px",
-                      lineHeight: "1.4",
-                    }}
-                  >
-                    Enter <strong>Current (mA) + Voltage (V)</strong> OR just{" "}
-                    <strong>Power (W)</strong> for each component.
-                  </div>
-
-                  <div className="scp-input-group">
-                    <label className="scp-label">Battery Capacity (Wh):</label>
-                    <input
-                      type="number"
-                      className="scp-input"
-                      value={shamanIIConfig.batteryLife}
-                      onChange={(e) =>
-                        setShamanIIConfig(
-                          new ComponentPowerModel(
-                            e.target.value,
-                            shamanIIConfig.components,
-                          ),
-                        )
-                      }
-                      step="0.1"
-                    />
-                  </div>
-
-                  <div style={{ overflowX: "auto", marginTop: "12px" }}>
-                    <table
-                      style={{
-                        width: "100%",
-                        fontSize: "10px",
-                        borderCollapse: "collapse",
-                      }}
-                    >
-                      <thead>
-                        <tr
-                          style={{
-                            borderBottom: "1px solid var(--border)",
-                            fontWeight: "600",
-                          }}
-                        >
-                          <th style={{ padding: "8px 4px", textAlign: "left" }}>
-                            Component
-                          </th>
-                          <th
-                            style={{ padding: "8px 4px", textAlign: "right" }}
-                          >
-                            Current (mA)
-                          </th>
-                          <th
-                            style={{ padding: "8px 4px", textAlign: "right" }}
-                          >
-                            Voltage (V)
-                          </th>
-                          <th
-                            style={{ padding: "8px 4px", textAlign: "right" }}
-                          >
-                            Power (W)
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.entries(shamanIIConfig.components).map(
-                          ([name, cvp]) => (
-                            <tr
-                              key={name}
-                              style={{
-                                borderBottom: "1px solid var(--border-muted)",
-                              }}
-                            >
-                              <td
-                                style={{
-                                  padding: "8px 4px",
-                                  color: "var(--text-primary)",
-                                }}
-                              >
-                                {formatComponentLabel(name)}
-                              </td>
-                              <td style={{ padding: "4px" }}>
-                                <input
-                                  type="number"
-                                  className="scp-input"
-                                  placeholder="—"
-                                  value={cvp.current ?? ""}
-                                  onChange={(e) => {
-                                    const newVal = e.target.value
-                                      ? parseFloat(e.target.value)
-                                      : null;
-                                    shamanIIConfig.components[name].current =
-                                      newVal;
-                                    setShamanIIConfig(
-                                      new ComponentPowerModel(
-                                        shamanIIConfig.batteryLife,
-                                        { ...shamanIIConfig.components },
-                                      ),
-                                    );
-                                  }}
-                                  step="0.1"
-                                  style={{ width: "100%" }}
-                                />
-                              </td>
-                              <td style={{ padding: "4px" }}>
-                                <input
-                                  type="number"
-                                  className="scp-input"
-                                  placeholder="—"
-                                  value={cvp.voltage ?? ""}
-                                  onChange={(e) => {
-                                    const newVal = e.target.value
-                                      ? parseFloat(e.target.value)
-                                      : null;
-                                    shamanIIConfig.components[name].voltage =
-                                      newVal;
-                                    setShamanIIConfig(
-                                      new ComponentPowerModel(
-                                        shamanIIConfig.batteryLife,
-                                        { ...shamanIIConfig.components },
-                                      ),
-                                    );
-                                  }}
-                                  step="0.1"
-                                  style={{ width: "100%" }}
-                                />
-                              </td>
-                              <td style={{ padding: "4px" }}>
-                                <input
-                                  type="number"
-                                  className="scp-input"
-                                  placeholder="—"
-                                  value={cvp.power ?? ""}
-                                  onChange={(e) => {
-                                    const newVal = e.target.value
-                                      ? parseFloat(e.target.value)
-                                      : null;
-                                    shamanIIConfig.components[name].power =
-                                      newVal;
-                                    setShamanIIConfig(
-                                      new ComponentPowerModel(
-                                        shamanIIConfig.batteryLife,
-                                        { ...shamanIIConfig.components },
-                                      ),
-                                    );
-                                  }}
-                                  step="0.001"
-                                  style={{ width: "100%" }}
-                                />
-                              </td>
-                            </tr>
-                          ),
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Step 3: Media Files Upload */}
-              {configStep === 3 && (
-                <div className="modal-section">
-                  <div className="modal-label">
-                    Select audio/video files for Shaman I nodes
-                  </div>
-                  {nodes.map(
-                    (node) => 
-                      (node.label.includes("Shaman I ")) ? (
-                        <div key={node.id} className="modal-file-group">
-                          <label className="modal-file-label">
-                            {node.id} — {node.label}
-                          </label>
-                          <input
-                            type="file"
-                            className="modal-file-input"
-                            accept="audio/*,video/*"
-                            onChange={(e) =>
-                              handleMediaFileChange(
-                                node.id,
-                                e.target.files?.[0],
-                              )
-                            }
-                          />
-                          {mediaFiles[node.id] && (
-                            <div className="modal-file-selected">
-                              ✓ {mediaFiles[node.id]}
-                            </div>
-                          )}
-                        </div>
-                      ) : null
-                  )}
-                </div>
-              )}
-
-              {/* Step 4: Details */}
-              {configStep === 4 && (
-                <div className="modal-section">
-                  <div className="modal-label">Configure Run Details</div>
-                  <div className="scp-input-group">
-                    <label className="scp-label">Run Name:</label>
-                    <input
-                      className="scp-input"
-                      value={runName}
-                      onChange={(e) => setRunName(e.target.value)}
-                    />
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--text-muted)",
-                      lineHeight: "1.5",
-                    }}
-                  ></div>
-                </div>
-              )}
-            </div>
-            <div className="modal-footer">
+        <ModalStepper
+          open
+          steps={configSteps}
+          activeIndex={configStepIndex}
+          onStepChange={goToConfigStep}
+          dialogClassName="modal-dialog-fixed"
+          onClose={() => {
+            setWorkflow("design");
+            resetConfigSteps();
+          }}
+          footer={
+            <>
               <button
                 className="modal-btn-cancel"
                 onClick={() => {
-                  if (configStep === 1) {
+                  if (isConfigFirst) {
                     setWorkflow("design");
-                    setConfigStep(1);
+                    resetConfigSteps();
                   } else {
-                    setConfigStep(configStep - 1);
+                    prevConfigStep();
                   }
                 }}
               >
@@ -1582,18 +1546,18 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
               <button
                 className="modal-btn-confirm"
                 onClick={() => {
-                  if (configStep < 4) {
-                    setConfigStep(configStep + 1);
-                  } else {
+                  if (isConfigLast) {
                     runSimulation();
+                  } else {
+                    nextConfigStep();
                   }
                 }}
               >
-                {configStep < 4 ? "Next" : "Run Simulation"}
+                {isConfigLast ? "Run Simulation" : "Next"}
               </button>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
       )}
 
       {/* Dialog: Loading Screen */}

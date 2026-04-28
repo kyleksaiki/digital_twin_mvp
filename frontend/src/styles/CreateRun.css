@@ -526,7 +526,7 @@
 }
 
 .modal-dialog {
-    background: var(--bg-primary);
+    background: var(--bg-deep);
     border: 1px solid var(--border);
     border-radius: 8px;
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
@@ -555,12 +555,15 @@
     align-items: center;
     padding: 16px 20px;
     border-bottom: 1px solid var(--border);
-    background: rgba(23, 32, 53, 0.5);
+    background: var(--bg-deep);
 }
 
 .modal-title {
     font-size: 14px;
     font-weight: 700;
+}
+
+.modal-dialog.modal-dialog-fixed {
     color: var(--text-primary);
 }
 
@@ -583,6 +586,41 @@
     background: var(--bg-tertiary);
     color: var(--text-primary);
     border-color: var(--border-active);
+}
+
+.modal-stepper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-deep);
+}
+
+.modal-step-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--border-active);
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.modal-step-dot:hover {
+    background: var(--text-secondary);
+}
+
+.modal-step-dot.active {
+    background: var(--cyan);
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+    transform: scale(1.15);
+}
+
+.modal-step-dot:focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 2px;
 }
 
 .modal-body {
@@ -663,7 +701,7 @@
     gap: 10px;
     padding: 12px 16px;
     border-top: 1px solid var(--border);
-    background: rgba(23, 32, 53, 0.3);
+    background: var(--bg-deep);
 }
 
 .modal-btn-confirm,

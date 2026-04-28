@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { fetchNetmap } from "../api";
 import Modal from "./common/Modal";
 import { LineTrendChart } from "./common/SimpleCharts";
+import { normalizedToLatLon } from "../utils/coordinates";
 
 function parseDurationHours(duration) {
   if (typeof duration === "number" && Number.isFinite(duration)) {
@@ -146,7 +147,11 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
   const [selectedNodeId, setSelectedNodeId] = React.useState(null);
   const [isBatteryModalOpen, setIsBatteryModalOpen] = React.useState(false);
   const [isBatteryModalExpanded, setIsBatteryModalExpanded] = React.useState(false);
-  const [mouseCoords, setMouseCoords] = useState({ x: 0, y: 0, visible: false });
+  const [mouseCoords, setMouseCoords] = useState({
+    lat: 0,
+    lon: 0,
+    visible: false,
+  });
   const stateRef = useRef({
     nodes: [],
     edges: [],
@@ -164,13 +169,6 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     dragStartY: 0,
     panStartX: 0,
     panStartY: 0,
-  });
-  // Use same real coord bounds as CreateRun for consistency
-  const REAL_COORD_BOUNDS = Object.freeze({
-    minX: 0,
-    maxX: 1000,
-    minY: 0,
-    maxY: 1000,
   });
   const rafRef = useRef(null);
   const selectedNode = nodesSnapshot.find((node) => node.id === selectedNodeId) || null;
@@ -641,24 +639,19 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     // compute normalized and real coords similar to CreateRun
     const w = rect.width;
     const h = rect.height;
-    const normalizedX = Math.max(0, Math.min(1, (mx - w / 2 - s.panX) / (s.zoom * w) + 0.5));
-    const normalizedY = Math.max(0, Math.min(1, (my - h / 2 - s.panY) / (s.zoom * h) + 0.5));
-    const realX = Number(
-      (
-        REAL_COORD_BOUNDS.minX +
-        normalizedX * (REAL_COORD_BOUNDS.maxX - REAL_COORD_BOUNDS.minX)
-      ).toFixed(2),
+    const normalizedX = Math.max(
+      0,
+      Math.min(1, (mx - w / 2 - s.panX) / (s.zoom * w) + 0.5),
     );
-    const realY = Number(
-      (
-        REAL_COORD_BOUNDS.minY +
-        normalizedY * (REAL_COORD_BOUNDS.maxY - REAL_COORD_BOUNDS.minY)
-      ).toFixed(2),
+    const normalizedY = Math.max(
+      0,
+      Math.min(1, (my - h / 2 - s.panY) / (s.zoom * h) + 0.5),
     );
+    const { lat, lon } = normalizedToLatLon(normalizedX, normalizedY);
 
     setMouseCoords((prev) => {
-      if (prev.visible && prev.x === realX && prev.y === realY) return prev;
-      return { x: realX, y: realY, visible: true };
+      if (prev.visible && prev.lat === lat && prev.lon === lon) return prev;
+      return { lat, lon, visible: true };
     });
     // hover detection
     s.hoveredNode = null;
@@ -953,8 +946,8 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
       {hasData && (
         <div>
           <div className={`map-cursor-popup ${mouseCoords.visible ? 'visible' : ''}`}>
-            <div className="map-cursor-row">X: {mouseCoords.x}</div>
-            <div className="map-cursor-row">Y: {mouseCoords.y}</div>
+            <div className="map-cursor-row">Lat: {mouseCoords.lat}</div>
+            <div className="map-cursor-row">Lon: {mouseCoords.lon}</div>
           </div>
           <div className="map-zoom">
           <button className="zoom-btn" onClick={zoomIn} title="Zoom In">+</button>

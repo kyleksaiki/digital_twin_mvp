@@ -162,7 +162,7 @@
 .zoom-btn {
     width: 32px;
     height: 32px;
-    background: rgba(11,17,32,0.92);
+    background: var(--bg-deep);
     border: 1px solid var(--border);
     border-radius: 6px;
     color: var(--text-secondary);
@@ -192,7 +192,7 @@
     position: absolute;
     pointer-events: none;
     z-index: 50;
-    background: rgba(11,17,32,0.95);
+    background: var(--bg-hover);
     border: 1px solid var(--border-active);
     border-radius: 6px;
     padding: 10px 14px;
