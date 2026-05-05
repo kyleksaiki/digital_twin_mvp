@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { fetchNetmap } from "../api";
 import Modal from "./common/Modal";
 import { LineTrendChart } from "./common/SimpleCharts";
-import { normalizedToLatLon } from "../utils/coordinates";
+import { formatLatLonDMS, normalizedToLatLon } from "../utils/coordinates";
 
 function parseDurationHours(duration) {
   if (typeof duration === "number" && Number.isFinite(duration)) {
@@ -176,6 +176,7 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
   const batteryTelemetry = selectedNode
     ? buildBatteryTelemetry(selectedNode, runDurationHours)
     : null;
+  const mouseCoordsText = formatLatLonDMS(mouseCoords.lat, mouseCoords.lon);
 
   useEffect(() => {
     let mounted = true;
@@ -359,7 +360,7 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
       ctx.globalAlpha = 1;
       
       // Map dimensions in normalized coordinates (-0.5 to 0.5)
-      const mapSize = 2;
+      const mapSize = 1;
       const mapX = -mapSize / 2;
       const mapY = -mapSize / 2;
       
@@ -946,8 +947,8 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
       {hasData && (
         <div>
           <div className={`map-cursor-popup ${mouseCoords.visible ? 'visible' : ''}`}>
-            <div className="map-cursor-row">Lat: {mouseCoords.lat}</div>
-            <div className="map-cursor-row">Lon: {mouseCoords.lon}</div>
+            <div className="map-cursor-row">Lat: {mouseCoordsText.lat}</div>
+            <div className="map-cursor-row">Lon: {mouseCoordsText.lon}</div>
           </div>
           <div className="map-zoom">
           <button className="zoom-btn" onClick={zoomIn} title="Zoom In">+</button>

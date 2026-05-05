@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRun } from "../api";
 import {
   OSA_MAP_BOUNDS,
+  formatLatLonDMS,
   latLonToNormalized,
   normalizedToLatLon,
 } from "../utils/coordinates";
@@ -58,6 +59,291 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+const formatFieldLabel = (value) =>
+  value.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+
+const STAGE1_FIELDS = [
+  {
+    key: "target_sample_rate",
+    label: "Target Sample Rate (Hz)",
+    type: "number",
+    step: "1",
+    defaultValue: 48000,
+  },
+  {
+    key: "block_seconds",
+    label: "Block Seconds",
+    type: "number",
+    step: "1",
+    defaultValue: 60,
+  },
+  {
+    key: "clip_s",
+    label: "Clip Duration (s)",
+    type: "number",
+    step: "0.1",
+    defaultValue: 3.0,
+  },
+  {
+    key: "rms_z_thresh",
+    label: "RMS Z Threshold",
+    type: "number",
+    step: "0.1",
+    defaultValue: 1.2,
+  },
+  {
+    key: "centroid_hz_thresh",
+    label: "Centroid Threshold (Hz)",
+    type: "number",
+    step: "1",
+    defaultValue: 1400,
+  },
+  {
+    key: "bandwidth_hz_thresh",
+    label: "Bandwidth Threshold (Hz)",
+    type: "number",
+    step: "1",
+    defaultValue: 700,
+  },
+  {
+    key: "snr_db_thresh",
+    label: "SNR Threshold (dB)",
+    type: "number",
+    step: "0.1",
+    defaultValue: 4.0,
+  },
+  {
+    key: "min_gap_s",
+    label: "Min Gap (s)",
+    type: "number",
+    step: "0.1",
+    defaultValue: 1.5,
+  },
+];
+
+const STAGE1_DEFAULTS = STAGE1_FIELDS.reduce((acc, field) => {
+  acc[field.key] = field.defaultValue ?? "";
+  return acc;
+}, {});
+
+const STAGE4_SENTINEL_KEYS = [
+  "Myiothlypis fulvicauda_Buff-rumped Warbler",
+  "Habia atrimaxillaris_Black-cheeked Ant-Tanager",
+  "Thamnophilus bridgesi_Black-hooded Antshrike",
+  "Tinamus major_Great Tinamou",
+  "Patagioenas nigrirostris_Short-billed Pigeon",
+  "Ramphastos ambiguus_Yellow-throated Toucan",
+  "Cyanoloxia cyanoides_Blue-black Grosbeak",
+  "Lipaugus unirufus_Rufous Piha",
+  "Threnetes ruckeri_Band-tailed Barbthroat",
+  "Ara macao_Scarlet Macaw",
+];
+
+const STAGE4_GROUPS = [
+  {
+    title: "Clip Metadata",
+    fields: [
+      {
+        key: "clip_name",
+        label: "Clip Name or Window ID",
+        type: "text",
+        placeholder: "node_01_2026-05-05_001",
+      },
+      {
+        key: "Recorder",
+        label: "Recorder / Node ID",
+        type: "text",
+        placeholder: "node_01",
+      },
+      {
+        key: "Timestamp",
+        label: "Timestamp",
+        type: "text",
+        placeholder: "2026-05-05T08:15:00",
+      },
+      {
+        key: "Timestamp Local",
+        label: "Timestamp Local",
+        type: "text",
+        placeholder: "2026-05-05T08:15:00-06:00",
+      },
+      {
+        key: "Timestamp UTC",
+        label: "Timestamp UTC",
+        type: "text",
+        placeholder: "2026-05-05T14:15:00+00:00",
+      },
+      {
+        key: "Datetime",
+        label: "Datetime",
+        type: "text",
+        placeholder: "2026-05-05 08:15:00",
+      },
+      {
+        key: "Time Of Day",
+        label: "Time Of Day",
+        type: "text",
+        placeholder: "morning",
+      },
+      {
+        key: "Sunrise",
+        label: "Sunrise",
+        type: "text",
+        placeholder: "2026-05-05T05:10:00-06:00",
+      },
+      {
+        key: "Sunset",
+        label: "Sunset",
+        type: "text",
+        placeholder: "2026-05-05T18:20:00-06:00",
+      },
+    ],
+  },
+  {
+    title: "Weather",
+    fields: [
+      {
+        key: "Temperature",
+        label: "Temperature",
+        type: "number",
+        step: "0.1",
+      },
+      {
+        key: "Windspeed",
+        label: "Windspeed",
+        type: "number",
+        step: "0.1",
+      },
+      {
+        key: "Precipitation",
+        label: "Precipitation",
+        type: "number",
+        step: "0.1",
+      },
+      {
+        key: "Humidity",
+        label: "Humidity",
+        type: "number",
+        step: "1",
+      },
+      {
+        key: "Weathercode",
+        label: "Weathercode",
+        type: "number",
+        step: "1",
+      },
+      {
+        key: "Weather Desc",
+        label: "Weather Desc",
+        type: "text",
+        placeholder: "Overcast",
+      },
+    ],
+  },
+  {
+    title: "Human Activity",
+    fields: [
+      {
+        key: "Human Activity",
+        label: "Human Activity",
+        type: "text",
+        placeholder: "footsteps",
+      },
+      {
+        key: "Human Activity Score",
+        label: "Human Activity Score",
+        type: "number",
+        step: "0.01",
+      },
+    ],
+  },
+  {
+    title: "BirdNET Outputs",
+    fields: [
+      {
+        key: "species",
+        label: "species",
+        type: "text",
+        placeholder: "Tinamus major",
+      },
+      {
+        key: "confidence",
+        label: "confidence",
+        type: "number",
+        step: "0.001",
+      },
+    ],
+  },
+  {
+    title: "Simulation Context",
+    fields: [
+      {
+        key: "Sim Type",
+        label: "Sim Type",
+        type: "text",
+        placeholder: "MVP",
+      },
+      {
+        key: "Sim Relative Time",
+        label: "Sim Relative Time",
+        type: "number",
+        step: "0.01",
+      },
+    ],
+  },
+  {
+    title: "Engineered Features",
+    fields: [
+      {
+        key: "hour_sin",
+        label: "hour_sin",
+        type: "number",
+        step: "0.0001",
+      },
+      {
+        key: "hour_cos",
+        label: "hour_cos",
+        type: "number",
+        step: "0.0001",
+      },
+      {
+        key: "Eerie_Silence",
+        label: "Eerie Silence",
+        type: "number",
+        step: "0.0001",
+      },
+      {
+        key: "Volume_Wind_Ratio",
+        label: "Volume Wind Ratio",
+        type: "number",
+        step: "0.0001",
+      },
+      {
+        key: "Volume_Spike_15s",
+        label: "Volume Spike 15s",
+        type: "number",
+        step: "0.0001",
+      },
+    ],
+  },
+  {
+    title: "Sentinel Species Flags",
+    fields: STAGE4_SENTINEL_KEYS.map((key) => ({
+      key,
+      label: formatFieldLabel(key),
+      type: "number",
+      step: "1",
+    })),
+  },
+];
+
+const STAGE4_DEFAULTS = STAGE4_GROUPS.reduce((acc, group) => {
+  group.fields.forEach((field) => {
+    acc[field.key] = field.defaultValue ?? "";
+  });
+  return acc;
+}, {});
+
 export default function CreateRun({ onNavigate, onRunCreated }) {
   const canvasRef = useRef(null);
   const tipRef = useRef(null);
@@ -75,6 +361,12 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   const [shamanIProcessor, setShamanIProcessor] = useState("ESP32");
   const [shamanIIProcessor, setShamanIIProcessor] = useState("Radxa Zero");
   const [mediaFiles, setMediaFiles] = useState({});
+  const [stage1Config, setStage1Config] = useState(() => ({
+    ...STAGE1_DEFAULTS,
+  }));
+  const [stage4Config, setStage4Config] = useState(() => ({
+    ...STAGE4_DEFAULTS,
+  }));
   const [workflow, setWorkflow] = useState("design"); // "design" | "configure" | "loading" | "confirm"
   const [isLoading, setIsLoading] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState("");
@@ -83,6 +375,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   const [coordLat, setCoordLat] = useState("");
   const [coordLon, setCoordLon] = useState("");
   const [coordError, setCoordError] = useState("");
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [mouseCoords, setMouseCoords] = useState({
     lat: OSA_MAP_BOUNDS.latMax,
     lon: OSA_MAP_BOUNDS.lonMin,
@@ -111,12 +404,18 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   });
 
   const rafRef = useRef(null);
+  const selectedNode =
+    nodes.find((node) => node.id === selectedNodeId) || null;
 
   // Sync state with React state
   useEffect(() => {
     stateRef.current.nodes = nodes;
     stateRef.current.edges = edges;
   }, [nodes, edges]);
+
+  useEffect(() => {
+    stateRef.current.selectedNode = selectedNodeId;
+  }, [selectedNodeId]);
 
   // Load Osa Peninsula map image
   useEffect(() => {
@@ -294,7 +593,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       ctx.globalAlpha = 1;
 
       // Map dimensions in normalized coordinates (-0.5 to 0.5)
-      const mapSize = 2;
+      const mapSize = 1;
       const mapX = -mapSize / 2;
       const mapY = -mapSize / 2;
 
@@ -383,7 +682,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       const sz =
         (n.role === "command" ? 20 : n.role === "relay" ? 14 : 10) * s.zoom;
       const isHovered = s.hoveredNode === n;
-      const isSelected = s.selectedNode === n;
+      const isSelected = s.selectedNode === n.id;
       const isConnecting = s.connectingFrom && s.connectingFrom.id === n.id;
       const hl = isHovered || isSelected || isConnecting;
 
@@ -512,6 +811,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         (e) => e.from !== nodeToDelete.id && e.to !== nodeToDelete.id,
       ),
     );
+    setSelectedNodeId((prev) => (prev === nodeToDelete.id ? null : prev));
   }
 
   function addEdge(from, to) {
@@ -669,6 +969,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
 
     // If hovering a node, check if double-click to delete or start connection
     if (s.hoveredNode) {
+      setSelectedNodeId(s.hoveredNode.id);
       if (e.detail === 2) {
         // Double click = delete
         deleteNode(s.hoveredNode);
@@ -692,6 +993,7 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       }
     } else {
       s.connectingFrom = null;
+      setSelectedNodeId(null);
     }
   }
 
@@ -793,6 +1095,8 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       mediaFiles,
       shamanIConfig,
       shamanIIConfig,
+      stage1Config,
+      stage4Config,
     };
 
     try {
@@ -821,6 +1125,8 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     setNodes([]);
     setEdges([]);
     setMediaFiles({});
+    setStage1Config({ ...STAGE1_DEFAULTS });
+    setStage4Config({ ...STAGE4_DEFAULTS });
     setCoordLat("");
     setCoordLon("");
     setCoordError("");
@@ -848,6 +1154,12 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     stateRef.current.zoom = 1;
     stateRef.current.panX = 0;
     stateRef.current.panY = 0;
+  }
+
+  function coerceNumberInput(value) {
+    if (value === "" || value === null || value === undefined) return "";
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? "" : parsed;
   }
 
   const configSteps = [
@@ -1235,6 +1547,80 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
       ),
     },
     {
+      id: "stage1",
+      title: "Stage 1: Event Detection",
+      content: (
+        <div className="modal-section">
+          <div className="modal-label">Candidate Generation Defaults</div>
+          <div className="modal-helper">
+            Applies to all nodes and clips for Stage 1 prefiltering.
+          </div>
+          <div className="modal-grid">
+            {STAGE1_FIELDS.map((field) => (
+              <div className="scp-input-group" key={field.key}>
+                <label className="scp-label">{field.label}</label>
+                <input
+                  type="number"
+                  className="scp-input"
+                  value={stage1Config[field.key] ?? ""}
+                  step={field.step}
+                  onChange={(e) => {
+                    const nextValue = coerceNumberInput(e.target.value);
+                    setStage1Config((prev) => ({
+                      ...prev,
+                      [field.key]: nextValue,
+                    }));
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "stage4",
+      title: "Stage 4: Human Presence",
+      content: (
+        <div className="modal-section">
+          <div className="modal-label">Human Presence Feature Inputs</div>
+          <div className="modal-helper">
+            Provide defaults for per-clip metadata, weather, and audio features.
+          </div>
+          {STAGE4_GROUPS.map((group) => (
+            <div className="modal-subsection" key={group.title}>
+              <div className="modal-subsection-title">{group.title}</div>
+              <div className="modal-grid">
+                {group.fields.map((field) => (
+                  <div className="scp-input-group" key={field.key}>
+                    <label className="scp-label">{field.label}</label>
+                    <input
+                      type={field.type || "text"}
+                      className="scp-input"
+                      value={stage4Config[field.key] ?? ""}
+                      placeholder={field.placeholder}
+                      step={field.type === "number" ? field.step : undefined}
+                      onChange={(e) => {
+                        const rawValue = e.target.value;
+                        const nextValue =
+                          field.type === "number"
+                            ? coerceNumberInput(rawValue)
+                            : rawValue;
+                        setStage4Config((prev) => ({
+                          ...prev,
+                          [field.key]: nextValue,
+                        }));
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ),
+    },
+    {
       id: "details",
       title: "Configure Details",
       content: (
@@ -1270,6 +1656,22 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     isLast: isConfigLast,
   } = useStepNavigator(configSteps.length, 0);
 
+  const selectedLat =
+    selectedNode && Number.isFinite(selectedNode.lat)
+      ? selectedNode.lat
+      : selectedNode?.realX;
+  const selectedLon =
+    selectedNode && Number.isFinite(selectedNode.lon)
+      ? selectedNode.lon
+      : selectedNode?.realY;
+  const selectedCoordsText = selectedNode
+    ? formatLatLonDMS(selectedLat, selectedLon)
+    : null;
+  const mouseCoordsText = formatLatLonDMS(mouseCoords.lat, mouseCoords.lon);
+
+  const osaMapBoundsMinText = formatLatLonDMS(OSA_MAP_BOUNDS.latMin, OSA_MAP_BOUNDS.lonMin);
+  
+  const osaMapBoundsMaxText = formatLatLonDMS(OSA_MAP_BOUNDS.latMax, OSA_MAP_BOUNDS.lonMax);
   return (
     <div
       style={{ position: "relative", width: "100%", height: "100%" }}
@@ -1324,14 +1726,14 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
         <input
           className="coord-input"
           type="number"
-          placeholder={`Lat (${OSA_MAP_BOUNDS.latMin} to ${OSA_MAP_BOUNDS.latMax})`}
+          placeholder={`Lat (${osaMapBoundsMinText.lat} to ${osaMapBoundsMaxText.lat})`}
           value={coordLat}
           onChange={(e) => setCoordLat(e.target.value)}
         />
         <input
           className="coord-input"
           type="number"
-          placeholder={`Lon (${OSA_MAP_BOUNDS.lonMin} to ${OSA_MAP_BOUNDS.lonMax})`}
+          placeholder={`Lon (${osaMapBoundsMinText.lon} to ${osaMapBoundsMaxText.lon})`}
           value={coordLon}
           onChange={(e) => setCoordLon(e.target.value)}
         />
@@ -1349,10 +1751,43 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
 
       {/* Zoom controls (top-right) */}
       <div
-        className={`map-cursor-popup ${mouseCoords.visible ? "visible" : ""}`}
+        className={`map-cursor-popup ${
+          mouseCoords.visible || selectedNode ? "visible" : ""
+        }`}
       >
-        <div className="map-cursor-row">Lat: {mouseCoords.lat}</div>
-        <div className="map-cursor-row">Lon: {mouseCoords.lon}</div>
+        {selectedNode ? (
+          <>
+            <div className="map-cursor-row" style={{ fontWeight: 600 }}>
+              Selected {selectedNode.id}
+            </div>
+            <div className="map-cursor-row">
+              Lat: {selectedCoordsText?.lat ?? "N/A"}
+            </div>
+            <div className="map-cursor-row">
+              Lon: {selectedCoordsText?.lon ?? "N/A"}
+            </div>
+            {mouseCoords.visible ? (
+              <div
+                style={{
+                  height: "1px",
+                  background: "var(--border)",
+                  margin: "6px 0",
+                  opacity: 0.6,
+                }}
+              ></div>
+            ) : null}
+          </>
+        ) : null}
+        {mouseCoords.visible ? (
+          <>
+            <div className="map-cursor-row">
+              Lat: {mouseCoordsText.lat}
+            </div>
+            <div className="map-cursor-row">
+              Lon: {mouseCoordsText.lon}
+            </div>
+          </>
+        ) : null}
       </div>
 
       <div className="map-zoom">

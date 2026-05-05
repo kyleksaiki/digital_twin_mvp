@@ -30,6 +30,8 @@ class CreateRunRequest(BaseModel):
     nodes: List[Dict[str, Any]]
     edges: List[Dict[str, Any]]
     mediaFiles: Optional[Dict[str, str]] = {}
+    stage1Config: Optional[Dict[str, Any]] = None
+    stage4Config: Optional[Dict[str, Any]] = None
     shamanConfig: Optional[Dict[str, Any]] = {}
     calibrationData: Optional[Dict[str, Any]] = None
     shamanIConfig: Optional[Dict[str, Any]] = None

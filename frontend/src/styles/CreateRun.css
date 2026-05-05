@@ -379,7 +379,7 @@
     opacity: 0;
     transform: translateY(-2px);
     transition: opacity 0.12s ease, transform 0.12s ease;
-    pointer-events: none;
+    user-select: all;
 }
 
 .map-cursor-popup.visible {
@@ -565,6 +565,8 @@
 
 .modal-dialog.modal-dialog-fixed {
     color: var(--text-primary);
+    width: min(860px, 92vw);
+    max-width: 860px;
 }
 
 .modal-close {
@@ -650,6 +652,45 @@
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+}
+
+.modal-helper {
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.modal-subsection {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.modal-subsection:first-of-type {
+    border-top: none;
+    padding-top: 0;
+}
+
+.modal-subsection-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+
+.modal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+}
+
+@media (max-width: 720px) {
+    .modal-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .modal-file-group {
