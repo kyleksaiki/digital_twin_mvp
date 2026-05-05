@@ -4,6 +4,9 @@ import Modal from "./common/Modal";
 import { LineTrendChart } from "./common/SimpleCharts";
 import { formatLatLonDMS, normalizedToLatLon } from "../utils/coordinates";
 
+const MAP_SIZE = 1;
+const MIN_ZOOM = 1 / MAP_SIZE;
+
 function parseDurationHours(duration) {
   if (typeof duration === "number" && Number.isFinite(duration)) {
     return Math.max(1, duration);
@@ -305,13 +308,13 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     const w = rect.width;
     const h = rect.height;
 
-    const minPanX = w * (0.5 - s.zoom);
-    const maxPanX = w * (s.zoom - 0.5);
-    const minPanY = h * (0.5 - s.zoom);
-    const maxPanY = h * (s.zoom - 0.5);
+    const mapW = w * MAP_SIZE * s.zoom;
+    const mapH = h * MAP_SIZE * s.zoom;
+    const maxPanX = Math.max(0, (mapW - w) / 2);
+    const maxPanY = Math.max(0, (mapH - h) / 2);
 
-    s.panX = Math.max(minPanX, Math.min(maxPanX, s.panX));
-    s.panY = Math.max(minPanY, Math.min(maxPanY, s.panY));
+    s.panX = Math.max(-maxPanX, Math.min(maxPanX, s.panX));
+    s.panY = Math.max(-maxPanY, Math.min(maxPanY, s.panY));
   }
 
   function congColor(c) {
@@ -354,23 +357,23 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
       h = canvas.clientHeight;
     ctx.clearRect(0, 0, w, h);
 
+    const mapW = w * MAP_SIZE * s.zoom;
+    const mapH = h * MAP_SIZE * s.zoom;
+    const mapScreenX = (w - mapW) / 2 + s.panX;
+    const mapScreenY = (h - mapH) / 2 + s.panY;
+
     // Draw Osa Peninsula map background
     if (mapImageRef.current) {
       ctx.save();
       ctx.globalAlpha = 1;
       
-      // Map dimensions in normalized coordinates (-0.5 to 0.5)
-      const mapSize = 1;
-      const mapX = -mapSize / 2;
-      const mapY = -mapSize / 2;
-      
-      // Convert to screen coordinates with pan/zoom
-      const screenX = mapX * w * s.zoom + w / 2 + s.panX;
-      const screenY = mapY * h * s.zoom + h / 2 + s.panY;
-      const screenW = mapSize * w * s.zoom;
-      const screenH = mapSize * h * s.zoom;
-      
-      ctx.drawImage(mapImageRef.current, screenX, screenY, screenW, screenH);
+      ctx.drawImage(
+        mapImageRef.current,
+        mapScreenX,
+        mapScreenY,
+        mapW,
+        mapH,
+      );
       ctx.restore();
     }
 
@@ -380,12 +383,17 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     ctx.globalAlpha = 0.4;
     ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
     ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.rect(mapScreenX, mapScreenY, mapW, mapH);
+    ctx.clip();
     const gridSize = 60 * s.zoom;
-    const baseX = s.panX % gridSize;
-    const baseY = s.panY % gridSize;
+    const startX = mapScreenX;
+    const startY = mapScreenY;
+    const endX = mapScreenX + mapW;
+    const endY = mapScreenY + mapH;
 
     // Vertical lines
-    for (let x = baseX - gridSize; x < w + gridSize; x += gridSize) {
+    for (let x = startX; x <= endX; x += gridSize) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
       ctx.lineTo(x, h);
@@ -393,7 +401,7 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
     }
 
     // Horizontal lines
-    for (let y = baseY - gridSize; y < h + gridSize; y += gridSize) {
+    for (let y = startY; y <= endY; y += gridSize) {
       ctx.beginPath();
       ctx.moveTo(0, y);
       ctx.lineTo(w, y);
@@ -684,7 +692,10 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
   function onWheel(e) {
     e.preventDefault();
     const s = stateRef.current;
-    s.zoom = Math.max(0.5, Math.min(3, s.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+    s.zoom = Math.max(
+      MIN_ZOOM,
+      Math.min(3, s.zoom * (e.deltaY < 0 ? 1.1 : 0.9)),
+    );
     clampPan();
   }
   function onClick() {
@@ -701,12 +712,12 @@ export default function NetMap({ run, onPanelOpen, onReroutes }) {
 
   function zoomIn() {
     const s = stateRef.current;
-    s.zoom = Math.max(0.5, Math.min(3, s.zoom * 1.2));
+    s.zoom = Math.max(MIN_ZOOM, Math.min(3, s.zoom * 1.2));
     clampPan();
   }
   function zoomOut() {
     const s = stateRef.current;
-    s.zoom = Math.max(0.5, Math.min(3, s.zoom * 0.8));
+    s.zoom = Math.max(MIN_ZOOM, Math.min(3, s.zoom * 0.8));
     clampPan();
   }
   function recenter() {
