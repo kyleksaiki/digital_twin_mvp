@@ -1,194 +1,195 @@
 /* Sidebar component styles */
 
 .sidebar {
-    background: var(--bg-primary);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 .sidebar::-webkit-scrollbar {
-    width: 4px;
+  width: 4px;
 }
 
 .sidebar::-webkit-scrollbar-thumb {
-    background: var(--border);
-    border-radius: 2px;
+  background: var(--border);
+  border-radius: 2px;
 }
 
 .sb-label {
-    font-size: 9px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    color: var(--text-muted);
-    padding: 14px 16px 6px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  padding: 14px 16px 6px;
 }
 
 .sb-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 9px 16px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: 0.12s;
-    border-left: 3px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: 0.12s;
+  border-left: 3px solid transparent;
 }
 
 .sb-item:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .sb-item.active {
-    background: rgba(0,229,255,0.06);
-    color: var(--cyan);
-    border-left-color: var(--cyan);
-    font-weight: 600;
+  background: rgba(0, 229, 255, 0.06);
+  color: var(--cyan);
+  border-left-color: var(--cyan);
+  font-weight: 600;
 }
 
 .sb-item.disabled {
-    color: var(--text-muted);
-    opacity: 0.5;
-    cursor: default;
+  color: var(--text-muted);
+  opacity: 0.5;
+  cursor: default;
 }
 
 .sb-icon {
-    font-size: 13px;
-    width: 16px;
-    text-align: center;
-    opacity: 0.7;
+  font-size: 13px;
+  width: 16px;
+  text-align: center;
+  opacity: 0.7;
 }
 
 .sb-divider {
-    height: 1px;
-    background: var(--border);
-    margin: 8px 16px;
+  height: 1px;
+  background: var(--border);
+  margin: 8px 16px;
 }
 
 /* Context filters - Network Map only */
 .sb-ctx {
-    display: none;
+  display: none;
 }
 
 .sb-ctx.visible {
-    display: block;
+  display: block;
 }
 
 .f-section {
-    padding: 0 14px;
+  padding: 0 14px;
 }
 
 .f-group {
-    margin-bottom: 10px;
+  margin-bottom: 10px;
 }
 
 .f-group-label {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: var(--text-muted);
-    margin-bottom: 5px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .f-select {
-    width: 100%;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 6px 8px;
-    color: var(--text-secondary);
-    font-size: 11px;
-    font-family: var(--font-sans);
-    outline: none;
-    appearance: none;
-    -webkit-appearance: none;
-    cursor: pointer;
+  width: 100%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: var(--font-sans);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
 }
 
 /* Reroutes collapsible panel */
 .reroutes-panel {
-    margin: 0 14px;
+  margin: 0 14px;
 }
 
 .reroutes-header {
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 10px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    transition: 0.15s;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: 0.15s;
 }
 
 .reroutes-header:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .reroutes-header .arrow {
-    transition: transform 0.2s;
-    font-size: 10px;
+  transition: transform 0.2s;
+  font-size: 10px;
 }
 
 .reroutes-header.open .arrow {
-    transform: rotate(90deg);
+  transform: rotate(90deg);
 }
 
 .reroutes-body {
-    border: 1px solid var(--border);
-    border-top: none;
-    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
-    background: var(--bg-card);
-    max-height: 200px;
-    overflow-y: auto;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--bg-card);
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .reroutes-body.open {
-    display: block;
+  display: block;
 }
 
 .reroute-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--border);
-    font-size: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
 }
 
 .reroute-item:last-child {
-    border-bottom: none;
+  border-bottom: none;
 }
 
 .reroute-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    background: var(--cyan);
-    flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--cyan);
+  flex-shrink: 0;
 }
 
 .reroute-from {
-    color: var(--text-muted);
-    font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
 }
 
 .reroute-to {
-    color: var(--cyan);
-    font-family: var(--font-mono);
-    font-weight: 600;
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-weight: 600;
 }

@@ -1,5 +1,6 @@
 """Run-related API endpoints — DB-backed version."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 from pydantic import BaseModel
@@ -7,6 +8,7 @@ from typing import List, Dict, Any, Optional
 import re
 from app.models import Run, RunDetail
 from app.database import get_db
+from app.services.run_export_service import RunExportService
 from app.db_models import (
     RunRow, RunMetricsRow, NetworkNodeRow, NetworkEdgeRow, 
     RerouteEventRow, DetectionByTypeRow, LatencyByRankRow, 
@@ -15,6 +17,10 @@ from app.db_models import (
 import random
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
+
+
+def get_run_export_service(db: Session = Depends(get_db)) -> RunExportService:
+    return RunExportService(db)
 
 
 class CreateRunRequest(BaseModel):
@@ -148,6 +154,31 @@ def get_run_detail(run_id: int, db: Session = Depends(get_db)) -> RunDetail:
         duration=row.duration, status=row.status,
         shamanIProcessor=row.shamani, shamanIIProcessor=row.shamanii,
         metrics=metrics,
+    )
+
+
+@router.get("/{run_id}/export")
+def export_run(
+    run_id: int,
+    include_nodes: bool = Query(True, description="Include node section"),
+    include_edges: bool = Query(True, description="Include edge section"),
+    export_service: RunExportService = Depends(get_run_export_service),
+):
+    run = export_service.get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    filename = export_service.build_filename(run_id)
+    headers = {"Content-Disposition": f"attachment; filename=\"{filename}\""}
+
+    return StreamingResponse(
+        export_service.stream_run_export(
+            run,
+            include_nodes=include_nodes,
+            include_edges=include_edges,
+        ),
+        media_type="text/csv",
+        headers=headers,
     )
 
 

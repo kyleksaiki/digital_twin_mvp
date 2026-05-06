@@ -36,3 +36,18 @@ export async function postChat(q, context = null){
   })
   return res.json()
 }
+
+export async function exportReport(runId, includeNodes = true, includeEdges = true){
+  if(!runId){
+    throw new Error('Missing run id')
+  }
+  const params = new URLSearchParams({
+    include_nodes: includeNodes ? 'true' : 'false',
+    include_edges: includeEdges ? 'true' : 'false',
+  })
+  const res = await fetch(`${API_BASE}/runs/${runId}/export?${params.toString()}`)
+  if(!res.ok){
+    throw new Error('Export failed')
+  }
+  return res
+}

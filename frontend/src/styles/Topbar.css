@@ -51,3 +51,19 @@
     background: var(--bg-hover);
     color: var(--text-primary);
 }
+
+.topbar-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.export-report {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.export-error {
+    font-size: 10px;
+    color: var(--red);
+}

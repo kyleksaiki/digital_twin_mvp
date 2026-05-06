@@ -55,7 +55,12 @@ export default function App(){
 
   return (
     <div className={`app ${panelOpen ? 'panel-open':''}`} id="app">
-      <Topbar title={titles[page]} isDarkMode={isDarkMode} onToggleTheme={toggleTheme} />
+      <Topbar
+        title={titles[page]}
+        isDarkMode={isDarkMode}
+        onToggleTheme={toggleTheme}
+        runId={loadedRun?.id}
+      />
       <Sidebar onNavigate={setPage} active={page} reroutes={reroutes} isRunLoaded={loadedRun != null} />
 
       <div className={`page ${page==='runsel'?'active':''}`} id="pageRunSelector">
