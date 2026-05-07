@@ -6,7 +6,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import runs, network, ai, export
+from app.routes import runs, network, ai, export, audio_processing
 from app.database import init_db
 from app.seed import seed
 
@@ -29,6 +29,7 @@ app.include_router(runs.router)
 app.include_router(network.router)
 app.include_router(ai.router)
 app.include_router(export.router)
+app.include_router(audio_processing.router)
 
 
 @app.on_event("startup")

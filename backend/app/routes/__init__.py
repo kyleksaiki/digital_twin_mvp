@@ -1,4 +1,4 @@
 """API routes."""
-from . import runs, network, ai, export
+from . import runs, network, ai, export, audio_processing
 
-__all__ = ["runs", "network", "ai", "export"]
+__all__ = ["runs", "network", "ai", "export", "audio_processing"]
