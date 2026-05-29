@@ -22,11 +22,32 @@ export function fetchNetmap(runId){
   return getJson(`/netmap?run_id=${runId || 1}`)
 }
 export function fetchDashboard(runId){ return getJson(`/runs/${runId}/dashboard`) }
+export function fetchRunStatus(runId){ return getJson(`/runs/${runId}/status`) }
 export function fetchAiSummary(runId){ 
   if(runId) return getJson(`/ai/summary?run_id=${runId}`)
   return getJson('/ai/summary')
 }
 export function createRun(runData){ return postJson('/runs/create', runData) }
+export async function uploadAudio({ file, nodeId, runId } = {}){
+  if(!file || !nodeId){
+    throw new Error('Missing file or node id')
+  }
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('node_id', nodeId)
+  if(runId !== undefined && runId !== null){
+    formData.append('run_id', String(runId))
+  }
+  const res = await fetch(`${API_BASE}/audio/upload`, {
+    method: 'POST',
+    body: formData,
+  })
+  if(!res.ok){
+    const message = await res.text()
+    throw new Error(message || 'Upload failed')
+  }
+  return res.json()
+}
 export async function postChat(q, context = null){
   const body = context ? { q, context } : { q }
   const res = await fetch(`${API_BASE}/ai/chat`, {

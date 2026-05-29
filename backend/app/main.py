@@ -6,7 +6,11 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import runs, network, ai, export, audio_processing
+from app.routes import runs
+from app.routes import network
+from app.routes import ai
+from app.routes import export
+from app.routes import audio
 from app.database import init_db
 from app.seed import seed
 
@@ -29,14 +33,16 @@ app.include_router(runs.router)
 app.include_router(network.router)
 app.include_router(ai.router)
 app.include_router(export.router)
-app.include_router(audio_processing.router)
+app.include_router(audio.router)
 
 
 @app.on_event("startup")
 def on_startup():
-    """Create tables and seed mock data on first run."""
+    """Create tables and seed mock data when enabled."""
     init_db()
-    seed()
+    seed_enabled = os.getenv("SEED_MOCK_DATA", "").lower() in {"1", "true", "yes"}
+    if seed_enabled:
+        seed()
 
 
 @app.get("/health")

@@ -1,22 +1,170 @@
 """Run-related API endpoints — DB-backed version."""
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
+from pathlib import Path
+import logging
 import re
+import shutil
 from app.models import Run, RunDetail
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.services.run_export_service import RunExportService
+from app.services.audio_processing import process_run_audio, run_node_audio_workflow
 from app.db_models import (
     RunRow, RunMetricsRow, NetworkNodeRow, NetworkEdgeRow, 
     RerouteEventRow, DetectionByTypeRow, LatencyByRankRow, 
-    AccuracyConfidenceCurveRow, NodeEventRow, NodeChildRow, AIEventRow
+    AccuracyConfidenceCurveRow, NodeEventRow, NodeChildRow, AIEventRow, NodeAudioRow
 )
-import random
+
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
+
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+UPLOAD_ROOT = PROJECT_ROOT / "uploads"
+PENDING_ROOT = UPLOAD_ROOT / "pending"
+
+
+def _resolve_path(path: str) -> Path:
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        candidate = PROJECT_ROOT / candidate
+    return candidate
+
+
+def _relative_path(path: Path) -> str:
+    return path.relative_to(PROJECT_ROOT).as_posix()
+
+
+def _is_under(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _sanitize_node_id(node_id: str) -> str:
+    return "".join(ch for ch in str(node_id) if ch.isalnum() or ch in {"_", "-"}).strip("_-")
+
+
+def _select_fallback_node(nodes: List[Dict[str, Any]]) -> Optional[str]:
+    for node in nodes:
+        if str(node.get("role")) == "sensor" and node.get("id"):
+            return str(node.get("id"))
+    for node in nodes:
+        if node.get("id"):
+            return str(node.get("id"))
+    return None
+
+
+def _extract_node_audio_map(req: "CreateRunRequest") -> Dict[str, str]:
+    node_audio: Dict[str, str] = {}
+    media_files = req.mediaFiles or {}
+
+    if isinstance(media_files, dict):
+        for key, value in media_files.items():
+            if not value:
+                continue
+            if str(key).lower() == "audio":
+                continue
+            node_audio[str(key)] = str(value)
+
+    if req.audioFiles:
+        sensor_nodes = [str(node.get("id")) for node in req.nodes if node.get("role") == "sensor" and node.get("id")]
+        for index, audio_path in enumerate([item for item in req.audioFiles if item]):
+            if index < len(sensor_nodes) and sensor_nodes[index] not in node_audio:
+                node_audio[sensor_nodes[index]] = str(audio_path)
+
+    if not node_audio:
+        fallback_path = None
+        if isinstance(media_files, dict):
+            fallback_path = media_files.get("audio")
+        fallback_path = fallback_path or req.audioPath
+        if not fallback_path and req.audioFiles:
+            fallback_path = next((item for item in req.audioFiles if item), None)
+        if fallback_path:
+            fallback_node = _select_fallback_node(req.nodes)
+            if fallback_node:
+                node_audio[fallback_node] = str(fallback_path)
+
+    return node_audio
+
+
+def _finalize_audio_uploads(run_id: int, node_audio_map: Dict[str, str]) -> Dict[str, str]:
+    finalized: Dict[str, str] = {}
+    run_dir = UPLOAD_ROOT / f"run_{run_id}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    for node_id, raw_path in node_audio_map.items():
+        resolved = _resolve_path(raw_path)
+        if not resolved.exists():
+            raise HTTPException(status_code=400, detail=f"Audio file not found: {raw_path}")
+
+        safe_node = _sanitize_node_id(node_id) or "node"
+        suffix = resolved.suffix or ".wav"
+        filename = f"node_{safe_node}{suffix}" if not safe_node.lower().startswith("node_") else f"{safe_node}{suffix}"
+        dest = run_dir / filename
+
+        if resolved.resolve() != dest.resolve():
+            if dest.exists():
+                dest.unlink()
+            if _is_under(resolved, UPLOAD_ROOT):
+                resolved.replace(dest)
+            else:
+                shutil.copy2(resolved, dest)
+
+        finalized[str(node_id)] = _relative_path(dest)
+
+    return finalized
+
+
+def _process_audio_background(run_id: int, node_audio_map: Dict[str, str], config: Dict[str, Any]) -> None:
+    """Background task: opens its own SessionLocal, runs the audio workflow, updates run status."""
+    db = SessionLocal()
+    try:
+        if run_node_audio_workflow is None or process_run_audio is None:
+            logger.error("Audio workflow unavailable for run %s; marking failed", run_id)
+            run = db.query(RunRow).filter(RunRow.id == run_id).first()
+            if run:
+                run.status = "failed"
+                db.commit()
+            return
+
+        process_run_audio(
+            db,
+            run_id,
+            node_audio_map=node_audio_map,
+            tinycnn_weights=config.get("tinycnn_weights"),
+            tinycnn_threshold=float(config.get("tinycnn_threshold", 0.3)),
+            birdnet_threshold=float(config.get("birdnet_threshold", 0.5)),
+            human_presence_threshold=float(config.get("human_presence_threshold", 0.5)),
+            sr=int(config.get("target_sample_rate") or config.get("sr") or 48000),
+            skip_birdnet=bool(True),
+            block_seconds=float(config.get("block_seconds") or 60.0),
+            clip_s=float(config.get("clip_s") or 3.0),
+        )
+
+        run = db.query(RunRow).filter(RunRow.id == run_id).first()
+        if run:
+            run.status = "complete"
+            db.commit()
+    except Exception:
+        logger.exception("Audio processing failed for run %s", run_id)
+        try:
+            db.rollback()
+            run = db.query(RunRow).filter(RunRow.id == run_id).first()
+            if run:
+                run.status = "failed"
+                db.commit()
+        except Exception:
+            logger.exception("Failed to mark run %s as failed", run_id)
+    finally:
+        db.close()
 
 
 def get_run_export_service(db: Session = Depends(get_db)) -> RunExportService:
@@ -42,6 +190,8 @@ class CreateRunRequest(BaseModel):
     calibrationData: Optional[Dict[str, Any]] = None
     shamanIConfig: Optional[Dict[str, Any]] = None
     shamanIIConfig: Optional[Dict[str, Any]] = None
+    audioPath: Optional[str] = None
+    audioFiles: Optional[List[str]] = None
 
 
 class CreateRunResponse(BaseModel):
@@ -49,37 +199,21 @@ class CreateRunResponse(BaseModel):
     id: int
     name: str
     created_at: str
+    status: str
 
 
-def _generate_mock_node_data(node_role: str) -> Dict[str, Any]:
-    """Generate realistic mock data for a node."""
-    return {
-        "battery": random.randint(20, 100),
-        "drain": round(random.uniform(0.1, 2.5), 2),
-        "traffic": random.randint(10, 95),
-        "health": random.choice(["good", "warning", "critical"]),
-        "packets_in": random.randint(100, 5000),
-        "packets_out": random.randint(100, 5000),
-        "retries": random.randint(0, 50),
-        "collisions": random.randint(0, 10),
-        "ai_det": random.randint(0, 20),
-        "power_radio": random.randint(100, 500),
-        "power_processor": random.randint(50, 300),
-        "power_mic": random.randint(10, 100),
-    }
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
-def _generate_mock_edge_data() -> Dict[str, Any]:
-    """Generate realistic mock data for an edge."""
-    return {
-        "congestion": random.randint(10, 95),
-        "packet_loss": round(random.uniform(0, 5), 2),
-        "retries": random.randint(0, 20),
-        "collisions": random.randint(0, 5),
-        "avg_delay": random.randint(10, 500),
-        "reroutes": random.randint(0, 3),
-        "latency": random.randint(5, 200),
-    }
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _detections_from_events(events: List[str]) -> List[Dict[str, Any]]:
@@ -121,6 +255,15 @@ def list_runs(db: Session = Depends(get_db)):
     """List all available simulation runs."""
     rows = db.query(RunRow).order_by(RunRow.date.desc()).all()
     return {"runs": [_row_to_run(r) for r in rows]}
+
+
+@router.get("/{run_id}/status")
+def get_run_status(run_id: int, db: Session = Depends(get_db)):
+    """Lightweight status poll for fire-and-poll background audio processing."""
+    row = db.query(RunRow).filter(RunRow.id == run_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return {"id": row.id, "status": row.status}
 
 
 @router.get("/{run_id}")
@@ -226,11 +369,14 @@ def get_dashboard(run_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/create", response_model=CreateRunResponse)
-def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
+def create_run(req: CreateRunRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     scenario = req.scenario or "MVP Simulation"
     shamani = req.shamani or req.shamanIProcessor or "ESP32"
     shamanii = req.shamanii or req.shamanIIProcessor or "Radxa Zero"
     duration = req.duration or "24h"
+
+    node_audio_map = _extract_node_audio_map(req)
+    initial_status = "processing" if node_audio_map else (req.status or "pass")
 
     # Create run record
     run = RunRow(
@@ -240,29 +386,17 @@ def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
         shamani=shamani,
         shamanii=shamanii,
         duration=duration,
-        status=req.status or "pass",
+        status=initial_status,
         calibration_data=req.calibrationData,
     )
     db.add(run)
     db.flush()  # Get the run ID
-    
-    # Create mock metrics
-    avg_latency = random.randint(10, 200)
-    avg_congestion = random.randint(20, 80)
-    
-    metrics = RunMetricsRow(
-        run_id=run.id,
-        accuracy=round(random.uniform(0.75, 0.98), 4),
-        fpr=round(random.uniform(0.01, 0.1), 4),
-        latency_ms=avg_latency,
-        detection_count=random.randint(5, 50),
-        battery_health=round(random.uniform(60, 95), 2),
-        congestion=avg_congestion,
-        throughput=round(random.uniform(50, 500), 2),
-        conf_threshold=round(random.uniform(0.5, 0.9), 2),
-    )
-    db.add(metrics)
 
+    known_node_ids = {str(node.get("id")) for node in req.nodes if node.get("id")}
+    unknown_audio_nodes = [node_id for node_id in node_audio_map if node_id not in known_node_ids]
+    if unknown_audio_nodes:
+        raise HTTPException(status_code=400, detail=f"Audio files attached to unknown node(s): {', '.join(unknown_audio_nodes)}")
+    
     role_by_node_id = {
         str(node.get("id")): str(node.get("role"))
         for node in req.nodes
@@ -272,9 +406,9 @@ def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
     parent_by_sensor: Dict[str, str] = {}
     node_child_pairs = set()
     
-    # Create network nodes with mock data
+    # Create network nodes using provided fields or safe defaults
     for node in req.nodes:
-        mock_data = _generate_mock_node_data(node["role"])
+        power_breakdown = node.get("powerBreakdown") or {}
         real_x = node.get("realX")
         real_y = node.get("realY")
         db_node = NetworkNodeRow(
@@ -286,33 +420,36 @@ def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
             pos_y=node.get("y", 0.5),
             lat=node.get("lat", real_x),
             lon=node.get("lon", real_y),
-            **mock_data,
+            battery=_safe_int(node.get("battery")),
+            drain=_safe_float(node.get("drain")),
+            traffic=_safe_int(node.get("traffic")),
+            health=str(node.get("health") or "good"),
+            packets_in=_safe_int(node.get("packets_in") or node.get("packetsIn")),
+            packets_out=_safe_int(node.get("packets_out") or node.get("packetsOut")),
+            retries=_safe_int(node.get("retries")),
+            collisions=_safe_int(node.get("collisions")),
+            ai_det=_safe_int(node.get("ai_det") or node.get("aiDet")),
+            power_radio=_safe_int(node.get("power_radio") or power_breakdown.get("radio")),
+            power_processor=_safe_int(node.get("power_processor") or power_breakdown.get("processor")),
+            power_mic=_safe_int(node.get("power_mic") or power_breakdown.get("mic")),
         )
         db.add(db_node)
-
-        if node.get("role") == "sensor":
-            sensor_categories = ["bird", "gunshot", "chainsaw", "howler monkey"]
-            sampled = random.sample(sensor_categories, k=min(2, len(sensor_categories)))
-            for category in sampled:
-                event_count = random.randint(1, 8)
-                db.add(
-                    NodeEventRow(
-                        run_id=run.id,
-                        node_id=node["id"],
-                        event_text=f"{event_count} {category}",
-                    )
-                )
     
-    # Create network edges with mock data
+    # Create network edges using provided fields or safe defaults
     for edge in req.edges:
         from_node = edge["from"]
         to_node = edge["to"]
-        mock_data = _generate_mock_edge_data()
         db_edge = NetworkEdgeRow(
             run_id=run.id,
             from_node=from_node,
             to_node=to_node,
-            **mock_data,
+            congestion=_safe_int(edge.get("congestion")),
+            packet_loss=_safe_float(edge.get("packet_loss") or edge.get("packetLoss")),
+            retries=_safe_int(edge.get("retries")),
+            collisions=_safe_int(edge.get("collisions")),
+            avg_delay=_safe_int(edge.get("avg_delay") or edge.get("avgDelay")),
+            reroutes=_safe_int(edge.get("reroutes")),
+            latency=_safe_int(edge.get("latency")),
         )
         db.add(db_edge)
 
@@ -340,43 +477,31 @@ def create_run(req: CreateRunRequest, db: Session = Depends(get_db)):
             NetworkNodeRow.run_id == run.id,
             NetworkNodeRow.node_id == sensor_node_id,
         ).update({"parent_node_id": parent_node_id})
-    
-    # Create sample detection events
-    event_types = ["Bird", "Gunshot", "Chainsaw", "Howler Monkey", "Vehicle"]
-    for i in range(min(5, len(req.nodes))):
-        for _ in range(random.randint(1, 3)):
-            det = DetectionByTypeRow(
-                run_id=run.id,
-                event_type=random.choice(event_types),
-                count=random.randint(1, 10),
-            )
-            db.add(det)
-    
-    # Create sample latency points
-    for rank in range(1, min(6, len(req.nodes) + 1)):
-        lat_row = LatencyByRankRow(
-            run_id=run.id,
-            rank=rank,
-            latency_ms=random.randint(5, avg_latency * 2),
-        )
-        db.add(lat_row)
-    
-    # Create accuracy-confidence curve
-    for threshold in [0.5, 0.6, 0.7, 0.8, 0.9]:
-        acc_row = AccuracyConfidenceCurveRow(
-            run_id=run.id,
-            threshold=threshold,
-            accuracy=round(0.85 + (threshold / 10), 4),
-            fpr=round(0.1 - (threshold / 20), 4),
-        )
-        db.add(acc_row)
+
+    finalized_audio_map: Dict[str, str] = {}
+    if node_audio_map:
+        finalized_audio_map = _finalize_audio_uploads(run.id, node_audio_map)
+        for node_id, audio_path in finalized_audio_map.items():
+            db.add(NodeAudioRow(run_id=run.id, node_id=node_id, audio_path=audio_path))
     
     db.commit()
+
+    # Fire-and-poll: spawn background audio processing AFTER commit so the
+    # background task sees the persisted RunRow on its own session.
+    if finalized_audio_map:
+        config = {**(req.stage1Config or {}), **(req.stage4Config or {}), **(req.shamanIIConfig or {})}
+        background_tasks.add_task(
+            _process_audio_background,
+            run.id,
+            finalized_audio_map,
+            config,
+        )
     
     return CreateRunResponse(
         id=run.id,
         name=run.name,
         created_at=datetime.now().isoformat(),
+        status=run.status,
     )
 
 

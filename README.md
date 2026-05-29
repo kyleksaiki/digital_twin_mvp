@@ -2,16 +2,14 @@
 
 ![Image of a flowchart of the software architecture](SoftwareArchitectureDiagram.png)
 
+# Docs
 
-# Digital Twin UI + Mock API
+- Architecture overview: `ARCHITECTURE.md`
+- Audio workflow inputs: `docs/audio_workflow_inputs.md`
 
-This repository contains a Vite React frontend and a FastAPI backend scaffold with mock endpoints.
+# Development 💻
 
-The goal is to provide an end-to-end flow where the React UI populates fields and graphs from API responses (mock data for now).
-
-# Testing 💻
-
-Last tested using Python 3.14, npm 11.6.2, and Node.js v22.16.0!
+Requirements: Python 3.11+ and Node 18+.
 
 ```bash
 cd frontend

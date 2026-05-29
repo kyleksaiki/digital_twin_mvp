@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { createRun } from "../api";
+import { createRun, fetchRunStatus, uploadAudio } from "../api";
 import {
   OSA_MAP_BOUNDS,
   formatLatLonDMS,
@@ -409,6 +409,24 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   const rafRef = useRef(null);
   const selectedNode =
     nodes.find((node) => node.id === selectedNodeId) || null;
+
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  async function waitForRunCompletion(runId, timeoutMs = 30 * 60 * 1000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const statusRes = await fetchRunStatus(runId);
+      const status = String(statusRes?.status || "").toLowerCase();
+      if (status === "complete" || status === "pass") {
+        return statusRes;
+      }
+      if (status === "failed" || status === "fail") {
+        throw new Error("Audio processing failed");
+      }
+      await delay(2000);
+    }
+    throw new Error("Audio processing timed out");
+  }
 
   // Sync state with React state
   useEffect(() => {
@@ -1038,10 +1056,10 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
   }
 
   function handleMediaFileChange(nodeId, file) {
-    setMediaFiles({
-      ...mediaFiles,
-      [nodeId]: file ? file.name : null,
-    });
+    setMediaFiles((prev) => ({
+      ...prev,
+      [nodeId]: file ? { file, name: file.name } : null,
+    }));
   }
 
   function insertNodeAtRealCoordinate() {
@@ -1075,56 +1093,67 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     setWorkflow("loading");
     setIsLoading(true);
 
-    // Simulate loading delay
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // Create run data
-    const runData = {
-      name:
-        runName ||
-        `Run-${new Date().toISOString().split("T")[0]}-${Date.now() % 10000}`,
-      scenario: "MVP Simulation",
-      shamani: shamanIProcessor,
-      shamanii: shamanIIProcessor,
-      duration: "24h",
-      status: "pass",
-      nodes: nodes.map((n) => ({
-        id: n.id,
-        label: n.label,
-        role: n.role,
-        x: n.x,
-        y: n.y,
-        realX: n.lat ?? n.realX ?? null,
-        realY: n.lon ?? n.realY ?? null,
-        lat: n.lat ?? n.realX ?? null,
-        lon: n.lon ?? n.realY ?? null,
-      })),
-      edges: edges.map((e) => ({
-        from: e.from,
-        to: e.to,
-      })),
-      mediaFiles,
-      shamanIConfig,
-      shamanIIConfig,
-      stage1Config,
-      stage4Config,
-    };
-
     try {
+      const uploadEntries = Object.entries(mediaFiles).filter(
+        ([, entry]) => entry && entry.file,
+      );
+      const payloadMediaFiles = {};
+      for (const [nodeId, entry] of uploadEntries) {
+        const response = await uploadAudio({ file: entry.file, nodeId });
+        if (response?.saved_path) {
+          payloadMediaFiles[nodeId] = response.saved_path;
+        }
+      }
+      const hasAudioUploads = Object.keys(payloadMediaFiles).length > 0;
+
+      // Create run data
+      const runData = {
+        name:
+          runName ||
+          `Run-${new Date().toISOString().split("T")[0]}-${Date.now() % 10000}`,
+        scenario: "MVP Simulation",
+        shamani: shamanIProcessor,
+        shamanii: shamanIIProcessor,
+        duration: "24h",
+        status: "pass",
+        nodes: nodes.map((n) => ({
+          id: n.id,
+          label: n.label,
+          role: n.role,
+          x: n.x,
+          y: n.y,
+          realX: n.lat ?? n.realX ?? null,
+          realY: n.lon ?? n.realY ?? null,
+          lat: n.lat ?? n.realX ?? null,
+          lon: n.lon ?? n.realY ?? null,
+        })),
+        edges: edges.map((e) => ({
+          from: e.from,
+          to: e.to,
+        })),
+        mediaFiles: payloadMediaFiles,
+        shamanIConfig,
+        shamanIIConfig,
+        stage1Config,
+        stage4Config,
+      };
+
       // POST to backend via API client
       const result = await createRun(runData);
+
+      if (hasAudioUploads) {
+        await waitForRunCompletion(result.id);
+      }
+
       setIsLoading(false);
       setWorkflow("confirm");
       setConfirmMessage(
         `Simulation created successfully!\n\nRun ID: ${result.id}\nRun Name: ${result.name}`,
       );
     } catch (err) {
-      // Fallback to mock if backend not available
       setIsLoading(false);
       setWorkflow("confirm");
-      setConfirmMessage(
-        `Mock Simulation created!\n\nRun: ${runData.name}\nNodes: ${nodes.length}\nConnections: ${edges.length}`,
-      );
+      setConfirmMessage(`Simulation failed: ${err.message || "Unknown error"}`);
     }
   }
 
@@ -1547,9 +1576,9 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
                     handleMediaFileChange(node.id, e.target.files?.[0])
                   }
                 />
-                {mediaFiles[node.id] && (
+                {mediaFiles[node.id]?.file && (
                   <div className="modal-file-selected">
-                    ✓ {mediaFiles[node.id]}
+                    ✓ {mediaFiles[node.id].file.name}
                   </div>
                 )}
               </div>

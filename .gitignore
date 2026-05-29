@@ -6,3 +6,7 @@ __pycache__/
 .DS_Store
 **/.DS_Store
 /backend/.env
+# Generated audio workflow outputs and uploads
+audio_workflow_outputs/
+backend/audio_workflow_outputs/
+uploads/

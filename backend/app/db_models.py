@@ -21,7 +21,7 @@ class RunRow(Base):
     shamani    = Column(String(50), nullable=False)
     shamanii   = Column(String(50), nullable=False)
     duration   = Column(String(20), nullable=False)
-    status     = Column(Enum("pass", "warning", "fail"), nullable=False)
+    status     = Column(Enum("pass", "warning", "fail", "processing", "complete", "failed"), nullable=False, default="pass")
     created_at = Column(TIMESTAMP, server_default=func.now())
     calibration_data = Column(JSON, nullable=True)
 
@@ -31,6 +31,7 @@ class RunRow(Base):
     latency_by_rank    = relationship("LatencyByRankRow",         back_populates="run", cascade="all, delete-orphan")
     acc_curve          = relationship("AccuracyConfidenceCurveRow", back_populates="run", cascade="all, delete-orphan")
     nodes              = relationship("NetworkNodeRow",           back_populates="run", cascade="all, delete-orphan")
+    audio_files        = relationship("NodeAudioRow",            back_populates="run", cascade="all, delete-orphan")
     node_events        = relationship("NodeEventRow",             back_populates="run", cascade="all, delete-orphan")
     node_children      = relationship("NodeChildRow",             back_populates="run", cascade="all, delete-orphan")
     edges              = relationship("NetworkEdgeRow",           back_populates="run", cascade="all, delete-orphan")
@@ -117,6 +118,18 @@ class NetworkNodeRow(Base):
     power_mic       = Column(Integer, nullable=False)
 
     run = relationship("RunRow", back_populates="nodes")
+
+
+class NodeAudioRow(Base):
+    __tablename__ = "node_audio_files"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    run_id     = Column(Integer, ForeignKey("runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    node_id    = Column(String(20), nullable=False)
+    audio_path = Column(String(512), nullable=False)
+    created_at = Column(TIMESTAMP, server_default=func.now())
+
+    run = relationship("RunRow", back_populates="audio_files")
 
 
 class NodeEventRow(Base):

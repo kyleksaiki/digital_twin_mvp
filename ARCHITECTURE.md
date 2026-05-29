@@ -52,6 +52,8 @@ Then, feed into and run the PyTorch inference model based on the user’s select
 
 Using pre-collected benchmark tables from ESP32 and Radxa runs, latency and energy values are estimated per inference event.
 
+Implementation lives in `backend/app/audio_workflow` and is invoked during run creation to persist AI events for the dashboards.
+
 **Output: AI detections and their associated timestamps, latency, and energy metrics.**
 
 **Mesh Network Simulation**
@@ -138,6 +140,8 @@ The System Architecture
 *   User authentication
     
 *   Local AI Processing
+
+*   Staged audio workflow (`backend/app/audio_workflow`)
     
 *   Mesh Network Simulation
     
