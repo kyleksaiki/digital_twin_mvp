@@ -1,17 +1,11 @@
 /* Network Map component styles */
 
-#pageNetMap {
-    background: radial-gradient(ellipse at 30% 40%,rgba(0,229,255,0.03) 0%,transparent 60%), radial-gradient(ellipse at 70% 60%,rgba(167,139,250,0.02) 0%,transparent 50%), var(--bg-deep);
-}
+/* Note: The full-page grid background that was previously applied to
+   #pageNetMap has been removed. The page now hosts the Battery Statistics
+   dashboard which should not inherit the legacy map grid overlay. */
 
-#pageNetMap::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background-image: linear-gradient(rgba(30,45,72,0.15) 1px,transparent 1px),linear-gradient(90deg,rgba(30,45,72,0.15) 1px,transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-    z-index: 1;
+#pageNetMap {
+    background: transparent;
 }
 
 #pageNetMap canvas {

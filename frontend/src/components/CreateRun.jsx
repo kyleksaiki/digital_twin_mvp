@@ -1,69 +1,17 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import { createRun, fetchRunStatus, uploadAudio } from "../api";
-import {
-  OSA_MAP_BOUNDS,
-  formatLatLonDMS,
-  latLonToNormalized,
-  normalizedToLatLon,
-} from "../utils/coordinates";
 import ModalStepper from "./common/ModalStepper";
 import useStepNavigator from "../hooks/useStepNavigator";
 
 /**
- * CreateRun - Interactive topology design canvas for creating new simulation runs
+ * CreateRun - Simplified run configuration page.
  *
- * Features:
- * - Canvas-based node and edge placement
- * - Draggable toolbar for node creation
- * - Right-click context menu for node placement
- * - Pan, zoom, and navigation controls
- * - Shaman configuration panel
- * - Connection validation rules
- * - Calibration system for real-world coordinates
- *
- * Props:
- *   onNavigate: (page: string) => void - called to navigate to other pages
- *   onRunCreated: () => void - called after successful run creation
+ * Replaces the previous interactive topology design canvas with a form-based
+ * configuration interface. The map and node placement logic have been removed
+ * because the simulation now focuses on a single Shaman node.
  */
 
-function CVP(current, voltage, power) {
-  this.current = current || null;
-  this.voltage = voltage || null;
-  this.power = power || null;
-}
-
-function ComponentPowerModel(batteryLife, components, isShamanII = false) {
-  this.batteryLife = batteryLife;
-  this.components =
-    components ||
-    (isShamanII
-      ? {
-          sleep: new CVP(),
-          working: new CVP(),
-          transmit: new CVP(),
-          receive: new CVP(),
-        }
-      : {
-          sleep: new CVP(),
-          working: new CVP(),
-          transmit: new CVP(),
-          receive: new CVP(),
-          cameraImage: new CVP(),
-          cameraSleep: new CVP(),
-          micListen: new CVP(),
-          micSleep: new CVP(),
-        });
-}
-
-      const MAP_SIZE = 1;
-      const MIN_ZOOM = 1 / MAP_SIZE;
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
-}
-
-const formatFieldLabel = (value) =>
-  value.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+const PROCESSOR_OPTIONS = ["ESP32", "Radxa Zero", "Raspberry Pi", "Custom"];
 
 const STAGE1_FIELDS = [
   {
@@ -129,286 +77,90 @@ const STAGE1_DEFAULTS = STAGE1_FIELDS.reduce((acc, field) => {
   return acc;
 }, {});
 
-const STAGE4_SENTINEL_KEYS = [
-  "Myiothlypis fulvicauda_Buff-rumped Warbler",
-  "Habia atrimaxillaris_Black-cheeked Ant-Tanager",
-  "Thamnophilus bridgesi_Black-hooded Antshrike",
-  "Tinamus major_Great Tinamou",
-  "Patagioenas nigrirostris_Short-billed Pigeon",
-  "Ramphastos ambiguus_Yellow-throated Toucan",
-  "Cyanoloxia cyanoides_Blue-black Grosbeak",
-  "Lipaugus unirufus_Rufous Piha",
-  "Threnetes ruckeri_Band-tailed Barbthroat",
-  "Ara macao_Scarlet Macaw",
+const DURATION_OPTIONS = ["1h", "6h", "12h", "24h", "48h", "72h"];
+
+const ENVIRONMENT_OPTIONS = [
+  "Tropical Forest",
+  "Cloud Forest",
+  "Lowland Rainforest",
+  "Riparian",
+  "Edge / Clearing",
+  "Custom",
 ];
 
-const STAGE4_GROUPS = [
-  {
-    title: "Clip Metadata",
-    fields: [
-      {
-        key: "clip_name",
-        label: "Clip Name or Window ID",
-        type: "text",
-        placeholder: "node_01_2026-05-05_001",
-      },
-      {
-        key: "Recorder",
-        label: "Recorder / Node ID",
-        type: "text",
-        placeholder: "node_01",
-      },
-      {
-        key: "Timestamp",
-        label: "Timestamp",
-        type: "text",
-        placeholder: "2026-05-05T08:15:00",
-      },
-      {
-        key: "Timestamp Local",
-        label: "Timestamp Local",
-        type: "text",
-        placeholder: "2026-05-05T08:15:00-06:00",
-      },
-      {
-        key: "Timestamp UTC",
-        label: "Timestamp UTC",
-        type: "text",
-        placeholder: "2026-05-05T14:15:00+00:00",
-      },
-      {
-        key: "Datetime",
-        label: "Datetime",
-        type: "text",
-        placeholder: "2026-05-05 08:15:00",
-      },
-      {
-        key: "Time Of Day",
-        label: "Time Of Day",
-        type: "text",
-        placeholder: "morning",
-      },
-      {
-        key: "Sunrise",
-        label: "Sunrise",
-        type: "text",
-        placeholder: "2026-05-05T05:10:00-06:00",
-      },
-      {
-        key: "Sunset",
-        label: "Sunset",
-        type: "text",
-        placeholder: "2026-05-05T18:20:00-06:00",
-      },
-    ],
-  },
-  {
-    title: "Weather",
-    fields: [
-      {
-        key: "Temperature",
-        label: "Temperature",
-        type: "number",
-        step: "0.1",
-      },
-      {
-        key: "Windspeed",
-        label: "Windspeed",
-        type: "number",
-        step: "0.1",
-      },
-      {
-        key: "Precipitation",
-        label: "Precipitation",
-        type: "number",
-        step: "0.1",
-      },
-      {
-        key: "Humidity",
-        label: "Humidity",
-        type: "number",
-        step: "1",
-      },
-      {
-        key: "Weathercode",
-        label: "Weathercode",
-        type: "number",
-        step: "1",
-      },
-      {
-        key: "Weather Desc",
-        label: "Weather Desc",
-        type: "text",
-        placeholder: "Overcast",
-      },
-    ],
-  },
-  {
-    title: "Human Activity",
-    fields: [
-      {
-        key: "Human Activity",
-        label: "Human Activity",
-        type: "text",
-        placeholder: "footsteps",
-      },
-      {
-        key: "Human Activity Score",
-        label: "Human Activity Score",
-        type: "number",
-        step: "0.01",
-      },
-    ],
-  },
-  {
-    title: "BirdNET Outputs",
-    fields: [
-      {
-        key: "species",
-        label: "species",
-        type: "text",
-        placeholder: "Tinamus major",
-      },
-      {
-        key: "confidence",
-        label: "confidence",
-        type: "number",
-        step: "0.001",
-      },
-    ],
-  },
-  {
-    title: "Simulation Context",
-    fields: [
-      {
-        key: "Sim Type",
-        label: "Sim Type",
-        type: "text",
-        placeholder: "MVP",
-      },
-      {
-        key: "Sim Relative Time",
-        label: "Sim Relative Time",
-        type: "number",
-        step: "0.01",
-      },
-    ],
-  },
-  {
-    title: "Engineered Features",
-    fields: [
-      {
-        key: "hour_sin",
-        label: "hour_sin",
-        type: "number",
-        step: "0.0001",
-      },
-      {
-        key: "hour_cos",
-        label: "hour_cos",
-        type: "number",
-        step: "0.0001",
-      },
-      {
-        key: "Eerie_Silence",
-        label: "Eerie Silence",
-        type: "number",
-        step: "0.0001",
-      },
-      {
-        key: "Volume_Wind_Ratio",
-        label: "Volume Wind Ratio",
-        type: "number",
-        step: "0.0001",
-      },
-      {
-        key: "Volume_Spike_15s",
-        label: "Volume Spike 15s",
-        type: "number",
-        step: "0.0001",
-      },
-    ],
-  },
-  {
-    title: "Sentinel Species Flags",
-    fields: STAGE4_SENTINEL_KEYS.map((key) => ({
-      key,
-      label: formatFieldLabel(key),
-      type: "number",
-      step: "1",
-    })),
-  },
+const TARGET_SPECIES_PRESETS = [
+  "Tinamus major (Great Tinamou)",
+  "Ara macao (Scarlet Macaw)",
+  "Ramphastos ambiguus (Yellow-throated Toucan)",
+  "Patagioenas nigrirostris (Short-billed Pigeon)",
+  "Myiothlypis fulvicauda (Buff-rumped Warbler)",
 ];
 
-const STAGE4_DEFAULTS = STAGE4_GROUPS.reduce((acc, group) => {
-  group.fields.forEach((field) => {
-    acc[field.key] = field.defaultValue ?? "";
-  });
-  return acc;
-}, {});
+const COMPONENT_FIELDS = [
+  { key: "sleep", label: "Processor Sleep" },
+  { key: "working", label: "Processor Working" },
+  { key: "transmit", label: "Radio Transmit" },
+  { key: "receive", label: "Radio Receive" },
+  { key: "cameraImage", label: "Camera Image" },
+  { key: "cameraSleep", label: "Camera Sleep" },
+  { key: "micListen", label: "Mic Listen" },
+  { key: "micSleep", label: "Mic Sleep" },
+];
 
-export default function CreateRun({ onNavigate, onRunCreated }) {
-  const canvasRef = useRef(null);
-  const tipRef = useRef(null);
-  const draggedButtonRef = useRef(null);
-  const mapImageRef = useRef(null);
+function Cvp(current, voltage, power) {
+  return {
+    current: current ?? null,
+    voltage: voltage ?? null,
+    power: power ?? null,
+  };
+}
 
-  const [nodes, setNodes] = useState([]);
-  const [edges, setEdges] = useState([]);
-  const [shamanIConfig, setShamanIConfig] = useState(
-    new ComponentPowerModel(30, undefined, false),
-  );
-  const [shamanIIConfig, setShamanIIConfig] = useState(
-    new ComponentPowerModel(undefined, undefined, true),
-  );
-  const [shamanIProcessor, setShamanIProcessor] = useState("ESP32");
-  const [shamanIIProcessor, setShamanIIProcessor] = useState("Radxa Zero");
-  const [mediaFiles, setMediaFiles] = useState({});
-  const [stage1Config, setStage1Config] = useState(() => ({
-    ...STAGE1_DEFAULTS,
-  }));
-  const [stage4Config, setStage4Config] = useState(() => ({
-    ...STAGE4_DEFAULTS,
-  }));
-  const [workflow, setWorkflow] = useState("design"); // "design" | "configure" | "loading" | "confirm"
-  const [isLoading, setIsLoading] = useState(false);
+function buildDefaultComponents() {
+  return COMPONENT_FIELDS.reduce((acc, field) => {
+    acc[field.key] = Cvp();
+    return acc;
+  }, {});
+}
+
+function formatNumber(value) {
+  if (value === null || value === undefined || value === "") return "";
+  return value;
+}
+
+export default function CreateRun({ onRunCreated }) {
+  const [runName, setRunName] = useState("");
+  const [description, setDescription] = useState("");
+  const [environment, setEnvironment] = useState("Tropical Forest");
+  const [targetSpecies, setTargetSpecies] = useState([]);
+  const [sensitivity, setSensitivity] = useState(0.5);
+  const [confidenceThreshold, setConfidenceThreshold] = useState(0.75);
+  const [sampleRate, setSampleRate] = useState(48000);
+  const [duration, setDuration] = useState("24h");
+  const [scenario, setScenario] = useState("MVP Simulation");
+  const [shamanProcessor, setShamanProcessor] = useState("ESP32");
+  const [batteryCapacity, setBatteryCapacity] = useState(30);
+  const [components, setComponents] = useState(buildDefaultComponents);
+  const [stage1Config, setStage1Config] = useState({ ...STAGE1_DEFAULTS });
+  const [audioFile, setAudioFile] = useState(null);
+  const [workflow, setWorkflow] = useState("configure"); // "configure" | "loading" | "confirm"
   const [confirmMessage, setConfirmMessage] = useState("");
-  const [runName, setRunName] = useState(null);
-  const [coordNodeType, setCoordNodeType] = useState("sensor");
-  const [coordLat, setCoordLat] = useState("");
-  const [coordLon, setCoordLon] = useState("");
-  const [coordError, setCoordError] = useState("");
-  const [selectedNodeId, setSelectedNodeId] = useState(null);
-  const [mouseCoords, setMouseCoords] = useState({
-    lat: OSA_MAP_BOUNDS.latMax,
-    lon: OSA_MAP_BOUNDS.lonMin,
-    visible: false,
-  });
+  const [validationError, setValidationError] = useState("");
 
-  const stateRef = useRef({
-    nodes: [],
-    edges: [],
-    zoom: 1,
-    panX: 0,
-    panY: 0,
-    hoveredNode: null,
-    hoveredEdge: null,
-    selectedNode: null,
-    selectedEdge: null,
-    isDragging: false,
-    dragStartX: 0,
-    dragStartY: 0,
-    panStartX: 0,
-    panStartY: 0,
-    nodeCounter: { command: 0, relay: 0, sensor: 0 },
-    isPlacingNode: null, // "command" | "relay" | "sensor" | null
-    connectingFrom: null, // node to start edge from
-    contextMenu: null, // { x, y, show: boolean }
-  });
+  const stepDefs = [
+    { id: "general", title: "General" },
+    { id: "environment", title: "Environment & Target" },
+    { id: "parameters", title: "Parameters" },
+    { id: "power", title: "Power Configuration" },
+    { id: "stage1", title: "Stage 1: Filtering" },
+    { id: "review", title: "Review & Submit" },
+  ];
 
-  const rafRef = useRef(null);
-  const selectedNode =
-    nodes.find((node) => node.id === selectedNodeId) || null;
+  const {
+    activeIndex: currentStep,
+    next: goNext,
+    prev: goBack,
+    reset: resetSteps,
+  } = useStepNavigator(stepDefs.length);
 
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -428,1659 +180,658 @@ export default function CreateRun({ onNavigate, onRunCreated }) {
     throw new Error("Audio processing timed out");
   }
 
-  // Sync state with React state
-  useEffect(() => {
-    stateRef.current.nodes = nodes;
-    stateRef.current.edges = edges;
-  }, [nodes, edges]);
-
-  useEffect(() => {
-    stateRef.current.selectedNode = selectedNodeId;
-  }, [selectedNodeId]);
-
-  // Load Osa Peninsula map image
-  useEffect(() => {
-    const img = new Image();
-    img.src = "/Osa_Penisula_Map.png";
-    img.onload = () => {
-      mapImageRef.current = img;
-    };
-    img.onerror = () => {
-      console.error("Failed to load Osa Peninsula map image");
-    };
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const tip = document.createElement("div");
-    tip.className = "hover-tip";
-    tip.style.display = "none";
-    tip.id = "hoverTip";
-    canvas.parentElement.appendChild(tip);
-    tipRef.current = tip;
-
-    const handleResize = () => resizeCanvas();
-    window.addEventListener("resize", handleResize);
-
-    handleResize();
-    attachEvents();
-    startLoop();
-
-    return () => {
-      stopLoop();
-      window.removeEventListener("resize", handleResize);
-      detachEvents();
-      if (tip && tip.parentElement) tip.parentElement.removeChild(tip);
-    };
-  }, []);
-
-  function resizeCanvas() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const area = canvas.parentElement,
-      w = area.clientWidth,
-      h = area.clientHeight;
-    canvas.width = w * devicePixelRatio;
-    canvas.height = h * devicePixelRatio;
-    canvas.style.width = w + "px";
-    canvas.style.height = h + "px";
-    const ctx = canvas.getContext("2d");
-    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
-  }
-
-  function startLoop() {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    tick();
-  }
-
-  function stopLoop() {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-  }
-
-  function tick() {
-    drawCanvas();
-    rafRef.current = requestAnimationFrame(tick);
-  }
-
-  function nx(n) {
-    const canvas = canvasRef.current;
-    if (!canvas) return 0;
-    const rect = canvas.getBoundingClientRect();
-    const w = rect.width;
-    return (
-      (n.x * w - w / 2) * stateRef.current.zoom + w / 2 + stateRef.current.panX
-    );
-  }
-
-  function ny(n) {
-    const canvas = canvasRef.current;
-    if (!canvas) return 0;
-    const rect = canvas.getBoundingClientRect();
-    const h = rect.height;
-    return (
-      (n.y * h - h / 2) * stateRef.current.zoom + h / 2 + stateRef.current.panY
-    );
-  }
-
-  function clampPan() {
-    const s = stateRef.current;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const w = rect.width;
-    const h = rect.height;
-
-    const mapW = w * MAP_SIZE * s.zoom;
-    const mapH = h * MAP_SIZE * s.zoom;
-    const maxPanX = Math.max(0, (mapW - w) / 2);
-    const maxPanY = Math.max(0, (mapH - h) / 2);
-
-    s.panX = Math.max(-maxPanX, Math.min(maxPanX, s.panX));
-    s.panY = Math.max(-maxPanY, Math.min(maxPanY, s.panY));
-  }
-
-  function nodeColor(role) {
-    return role === "command"
-      ? "#00e5ff"
-      : role === "relay"
-        ? "#a78bfa"
-        : "#00e68a";
-  }
-
-  /**
-   * Returns a consistent color per connection type:
-   *   LoRa backbone       → blue (#3b82f6)
-   *   Wi-Fi access links  → red  (#ef4444)
-   */
-  function connectionTypeColor(fromRole, toRole) {
-    // Wi-Fi links: Shaman II <-> Shaman I
-    if (
-      (fromRole === "relay" && toRole === "sensor") ||
-      (fromRole === "sensor" && toRole === "relay")
-    ) {
-      return "#ef4444";
-    }
-
-    // LoRa links: Command <-> Shaman II and Shaman II <-> Shaman II
-    if (
-      (fromRole === "command" && toRole === "relay") ||
-      (fromRole === "relay" && toRole === "command")
-    ) {
-      return "#3b82f6";
-    }
-    if (fromRole === "relay" && toRole === "relay") return "#3b82f6";
-
-    return "#3b82f6";
-  }
-
-  function formatComponentLabel(name) {
-    const map = {
-      sleep: "Processor Sleep",
-      working: "Processor Working",
-      cameraImage: "Camera Image",
-      cameraSleep: "Camera Sleep",
-      micListen: "Mic Listen",
-      micSleep: "Mic Sleep",
-      transmit: "Radio Transmit",
-      receive: "Radio Receive",
-    };
-    if (map[name]) return map[name];
-    // Fallback: split camelCase or underscores into words
-    const spaced = name.replace(/([A-Z])/g, " $1").replace(/[_-]/g, " ");
-    return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-  }
-
-  function drawCanvas() {
-    const s = stateRef.current;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    if (canvas.width === 0 || canvas.height === 0) {
-      resizeCanvas();
-    }
-
-    const ctx = canvas.getContext("2d");
-    const rect = canvas.getBoundingClientRect();
-    const w = rect.width,
-      h = rect.height;
-    ctx.clearRect(0, 0, w, h);
-
-    const mapW = w * MAP_SIZE * s.zoom;
-    const mapH = h * MAP_SIZE * s.zoom;
-    const mapScreenX = (w - mapW) / 2 + s.panX;
-    const mapScreenY = (h - mapH) / 2 + s.panY;
-
-    // Draw Osa Peninsula map background
-    if (mapImageRef.current) {
-      ctx.save();
-      ctx.globalAlpha = 1;
-
-      ctx.drawImage(
-        mapImageRef.current,
-        mapScreenX,
-        mapScreenY,
-        mapW,
-        mapH,
-      );
-      ctx.restore();
-    }
-
-    // Draw map-like background pattern that moves with pan/zoom
-    // Subtle topographic grid
-    ctx.save();
-    ctx.globalAlpha = 0.4;
-    ctx.strokeStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.rect(mapScreenX, mapScreenY, mapW, mapH);
-    ctx.clip();
-    const gridSize = 60 * s.zoom;
-    const startX = mapScreenX;
-    const startY = mapScreenY;
-    const endX = mapScreenX + mapW;
-    const endY = mapScreenY + mapH;
-
-    // Vertical lines
-    for (let x = startX; x <= endX; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, h);
-      ctx.stroke();
-    }
-
-    // Horizontal lines
-    for (let y = startY; y <= endY; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // Draw edges first
-    s.edges.forEach((e) => {
-      const from = s.nodes.find((n) => n.id === e.from);
-      const to = s.nodes.find((n) => n.id === e.to);
-      if (!from || !to) return;
-
-      const x1 = nx(from),
-        y1 = ny(from),
-        x2 = nx(to),
-        y2 = ny(to);
-      const isValid = canConnect(from, to);
-
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.strokeStyle = isValid
-        ? connectionTypeColor(from.role, to.role)
-        : "#ff4d6a";
-      ctx.lineWidth = Math.max(2, 2.5 * s.zoom);
-      ctx.lineCap = "round";
-      ctx.stroke();
-    });
-
-    // Draw preview connection line if connecting
-    if (s.connectingFrom) {
-      const x1 = nx(s.connectingFrom);
-      const y1 = ny(s.connectingFrom);
-      const mouseX = s.lastMouseX || w / 2;
-      const mouseY = s.lastMouseY || h / 2;
-
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(mouseX, mouseY);
-      ctx.strokeStyle = "#7a5dfb";
-      ctx.lineWidth = Math.max(1, 1.5 * s.zoom);
-      ctx.setLineDash([4, 4]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
-    // Draw nodes
-    s.nodes.forEach((n) => {
-      const x = nx(n);
-      const y = ny(n);
-      const color = nodeColor(n.role);
-      const sz =
-        (n.role === "command" ? 20 : n.role === "relay" ? 14 : 10) * s.zoom;
-      const isHovered = s.hoveredNode === n;
-      const isSelected = s.selectedNode === n.id;
-      const isConnecting = s.connectingFrom && s.connectingFrom.id === n.id;
-      const hl = isHovered || isSelected || isConnecting;
-
-      if (hl) {
-        ctx.beginPath();
-        ctx.arc(x, y, sz + 10 * s.zoom, 0, Math.PI * 2);
-        ctx.fillStyle = isConnecting
-          ? "rgba(0, 230, 138, 0.9)"
-          : "rgba(0,0,0,0.06)";
-        ctx.fill();
-      }
-
-      ctx.lineWidth = hl ? 2.5 : 1.8;
-
-      if (n.role === "command") {
-        ctx.beginPath();
-        ctx.arc(x, y, sz, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
-        ctx.strokeStyle = isConnecting
-          ? "rgba(0, 230, 138, 0.95)"
-          : "rgba(0,0,0,0.18)";
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(x, y, sz * 0.35, 0, Math.PI * 2);
-        ctx.fillStyle = "#ffffff";
-        ctx.fill();
-      } else if (n.role === "relay") {
-        const hs = sz;
-        ctx.beginPath();
-        ctx.moveTo(x - hs, y - hs + 4);
-        ctx.arcTo(x - hs, y - hs, x - hs + 4, y - hs, 4);
-        ctx.arcTo(x + hs, y - hs, x + hs, y - hs + 4, 4);
-        ctx.arcTo(x + hs, y + hs, x + hs - 4, y + hs, 4);
-        ctx.arcTo(x - hs, y + hs, x - hs, y + hs - 4, 4);
-        ctx.closePath();
-        ctx.fillStyle = color;
-        ctx.fill();
-        ctx.strokeStyle = isConnecting
-          ? "rgba(0, 230, 138, 0.95)"
-          : "rgba(0,0,0,0.18)";
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(x, y, 3 * s.zoom, 0, Math.PI * 2);
-        ctx.fillStyle = "#ffffff";
-        ctx.fill();
-      } else {
-        const h = sz * 1.15;
-        ctx.beginPath();
-        ctx.moveTo(x, y - h);
-        ctx.lineTo(x + sz, y + h * 0.6);
-        ctx.lineTo(x - sz, y + h * 0.6);
-        ctx.closePath();
-        ctx.fillStyle = color;
-        ctx.fill();
-        ctx.strokeStyle = isConnecting
-          ? "rgba(0, 230, 138, 0.95)"
-          : "rgba(0,0,0,0.18)";
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(x, y + h * 0.05, 2.5 * s.zoom, 0, Math.PI * 2);
-        ctx.fillStyle = "#ffffff";
-        ctx.fill();
-      }
-
-      ctx.font = `500 ${(n.role === "command" ? 10 : 9) * s.zoom}px "JetBrains Mono"`;
-      ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
-      ctx.textAlign = "center";
-      ctx.fillText(n.id, x, y + sz + 12 * s.zoom);
-    });
-  }
-
-  function canConnect(from, to) {
-    // Command can connect to relays
-    if (from.role === "command" && to.role === "relay") return true;
-    if (from.role === "relay" && to.role === "command") return true;
-
-    // Relay can connect to relay (parent-child)
-    if (from.role === "relay" && to.role === "relay") return true;
-
-    // Relay can connect to sensors
-    if (from.role === "relay" && to.role === "sensor") return true;
-    if (from.role === "sensor" && to.role === "relay") return true;
-
-    return false;
-  }
-
-  function buildNode(role, x, y, lat = null, lon = null) {
-    const s = stateRef.current;
-    s.nodeCounter[role]++;
-
-    const id =
-      role === "command"
-        ? "CMD"
-        : role === "relay"
-          ? `R${s.nodeCounter.relay}`
-          : `S${s.nodeCounter.sensor}`;
-
-    const resolvedCoordinates =
-      Number.isFinite(lat) && Number.isFinite(lon)
-        ? { lat, lon }
-        : normalizedToLatLon(x, y);
-
-    return {
-      id,
-      label:
-        role === "command"
-          ? "Command Center"
-          : role === "relay"
-            ? `Shaman II (${id})`
-            : `Shaman I (${id})`,
-      role,
-      x,
-      y,
-      lat: resolvedCoordinates.lat,
-      lon: resolvedCoordinates.lon,
-      realX: resolvedCoordinates.lat,
-      realY: resolvedCoordinates.lon,
-    };
-  }
-
-  function deleteNode(nodeToDelete) {
-    setNodes((prevNodes) => prevNodes.filter((n) => n.id !== nodeToDelete.id));
-    setEdges((prevEdges) =>
-      prevEdges.filter(
-        (e) => e.from !== nodeToDelete.id && e.to !== nodeToDelete.id,
-      ),
-    );
-    setSelectedNodeId((prev) => (prev === nodeToDelete.id ? null : prev));
-  }
-
-  function addEdge(from, to) {
-    if (!from || !to || !from.id || !to.id) return;
-    if (!canConnect(from, to)) return;
-    // Allow multiple edges between nodes (no duplicate checking)
-    // Use functional setState to always get the latest state
-    setEdges((prevEdges) => [...prevEdges, { from: from.id, to: to.id }]);
-  }
-
-  function deleteEdge(edgeToDelete) {
-    setEdges((prevEdges) =>
-      prevEdges.filter(
-        (e) => !(e.from === edgeToDelete.from && e.to === edgeToDelete.to),
-      ),
-    );
-  }
-
-  function attachEvents() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.addEventListener("mousedown", onMouseDown);
-    canvas.addEventListener("mousemove", onMouseMove);
-    canvas.addEventListener("mouseleave", onMouseLeave);
-    canvas.addEventListener("mouseup", onMouseUp);
-    canvas.addEventListener("wheel", onWheel, { passive: false });
-    canvas.addEventListener("click", onClick);
-    canvas.addEventListener("contextmenu", onContextMenu);
-    document.addEventListener("click", onDocumentClick);
-  }
-
-  function detachEvents() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.removeEventListener("mousedown", onMouseDown);
-    canvas.removeEventListener("mousemove", onMouseMove);
-    canvas.removeEventListener("mouseleave", onMouseLeave);
-    canvas.removeEventListener("mouseup", onMouseUp);
-    canvas.removeEventListener("wheel", onWheel);
-    canvas.removeEventListener("click", onClick);
-    canvas.removeEventListener("contextmenu", onContextMenu);
-    document.removeEventListener("click", onDocumentClick);
-  }
-
-  function onMouseDown(e) {
-    const s = stateRef.current;
-    if (e.button === 0 && !s.hoveredNode) {
-      s.isDragging = true;
-      s.dragStartX = e.clientX;
-      s.dragStartY = e.clientY;
-      s.panStartX = s.panX;
-      s.panStartY = s.panY;
-      canvasRef.current.style.cursor = "grabbing";
-    }
-  }
-
-  function onMouseMove(e) {
-    const s = stateRef.current;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const w = rect.width;
-    const h = rect.height;
-
-    const normalizedX = clamp((mx - w / 2 - s.panX) / (s.zoom * w) + 0.5, 0, 1);
-    const normalizedY = clamp((my - h / 2 - s.panY) / (s.zoom * h) + 0.5, 0, 1);
-    const realCoords = normalizedToLatLon(normalizedX, normalizedY);
-
-    setMouseCoords((prev) => {
-      if (
-        prev.visible &&
-        prev.lat === realCoords.lat &&
-        prev.lon === realCoords.lon
-      ) {
-        return prev;
-      }
-      return { lat: realCoords.lat, lon: realCoords.lon, visible: true };
-    });
-
-    s.lastMouseX = mx;
-    s.lastMouseY = my;
-
-    if (s.isDragging) {
-      s.panX = s.panStartX + (e.clientX - s.dragStartX);
-      s.panY = s.panStartY + (e.clientY - s.dragStartY);
-      clampPan();
-      return;
-    }
-
-    // Hover detection
-    s.hoveredNode = null;
-    for (const n of s.nodes) {
-      const dx = mx - nx(n);
-      const dy = my - ny(n);
-      const r =
-        (n.role === "command" ? 24 : n.role === "relay" ? 18 : 14) * s.zoom;
-      if (dx * dx + dy * dy < r * r) {
-        s.hoveredNode = n;
-        canvas.style.cursor = "pointer";
-        return;
-      }
-    }
-
-    canvas.style.cursor = s.isDragging ? "grabbing" : "grab";
-  }
-
-  function onMouseLeave() {
-    setMouseCoords((prev) => {
-      if (!prev.visible) return prev;
-      return { ...prev, visible: false };
-    });
-  }
-
-  function onMouseUp() {
-    const s = stateRef.current;
-    s.isDragging = false;
-    if (canvasRef.current) canvasRef.current.style.cursor = "grab";
-  }
-
-  function onWheel(e) {
-    e.preventDefault();
-    const s = stateRef.current;
-    s.zoom = Math.max(
-      MIN_ZOOM,
-      Math.min(3, s.zoom * (e.deltaY < 0 ? 1.1 : 0.9)),
-    );
-    clampPan();
-  }
-
-  function onClick(e) {
-    const s = stateRef.current;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-
-    // If placing a node from toolbar
-    if (s.isPlacingNode) {
-      const rectArea = canvas.getBoundingClientRect();
-      const w = rectArea.width;
-      const h = rectArea.height;
-
-      // Convert screen coords to normalized coords
-      const x = clamp((mx - w / 2 - s.panX) / (s.zoom * w) + 0.5, 0, 1);
-      const y = clamp((my - h / 2 - s.panY) / (s.zoom * h) + 0.5, 0, 1);
-
-      const role = s.isPlacingNode;
-      const newNode = buildNode(role, x, y);
-
-      setNodes((prevNodes) => [...prevNodes, newNode]);
-      s.isPlacingNode = null;
-      canvas.style.cursor = "grab";
-      return;
-    }
-
-    // If hovering a node, check if double-click to delete or start connection
-    if (s.hoveredNode) {
-      setSelectedNodeId(s.hoveredNode.id);
-      if (e.detail === 2) {
-        // Double click = delete
-        deleteNode(s.hoveredNode);
-        s.connectingFrom = null;
-      } else {
-        // Single click = start/complete connection
-        const currentNodeId = s.hoveredNode.id;
-        const startNodeId = s.connectingFrom ? s.connectingFrom.id : null;
-
-        if (startNodeId === null) {
-          // No connection in progress - start one
-          s.connectingFrom = s.hoveredNode;
-        } else if (startNodeId === currentNodeId) {
-          // Clicked the same node again - cancel connection
-          s.connectingFrom = null;
-        } else {
-          // Different node - complete the connection
-          addEdge(s.connectingFrom, s.hoveredNode);
-          s.connectingFrom = null;
-        }
-      }
-    } else {
-      s.connectingFrom = null;
-      setSelectedNodeId(null);
-    }
-  }
-
-  function onContextMenu(e) {
-    e.preventDefault();
-    const s = stateRef.current;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-
-    s.contextMenu = {
-      x: e.clientX,
-      y: e.clientY,
-      show: true,
-    };
-  }
-
-  function onDocumentClick() {
-    const s = stateRef.current;
-    s.contextMenu = null;
-  }
-
-  function startToolbarDrag(e, nodeType) {
-    draggedButtonRef.current = nodeType;
-    const s = stateRef.current;
-    s.isPlacingNode = nodeType;
-    const canvas = canvasRef.current;
-    canvas.style.cursor = "crosshair";
-  }
-
-  function handleMediaFileChange(nodeId, file) {
-    setMediaFiles((prev) => ({
+  function updateComponent(key, field, value) {
+    setComponents((prev) => ({
       ...prev,
-      [nodeId]: file ? { file, name: file.name } : null,
+      [key]: { ...prev[key], [field]: value === "" ? null : Number(value) },
     }));
   }
 
-  function insertNodeAtRealCoordinate() {
-    const parsedLat = Number(coordLat);
-    const parsedLon = Number(coordLon);
-
-    if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLon)) {
-      setCoordError("Enter valid numeric coordinates.");
-      return;
-    }
-
-    if (
-      parsedLat < OSA_MAP_BOUNDS.latMin ||
-      parsedLat > OSA_MAP_BOUNDS.latMax ||
-      parsedLon < OSA_MAP_BOUNDS.lonMin ||
-      parsedLon > OSA_MAP_BOUNDS.lonMax
-    ) {
-      setCoordError(
-        `Coordinates must be within ${OSA_MAP_BOUNDS.latMin}-${OSA_MAP_BOUNDS.latMax} (lat) and ${OSA_MAP_BOUNDS.lonMin}-${OSA_MAP_BOUNDS.lonMax} (lon).`,
-      );
-      return;
-    }
-
-    const { x, y } = latLonToNormalized(parsedLat, parsedLon);
-    const newNode = buildNode(coordNodeType, x, y, parsedLat, parsedLon);
-    setNodes((prevNodes) => [...prevNodes, newNode]);
-    setCoordError("");
+  function updateStage1(key, value) {
+    setStage1Config((prev) => ({
+      ...prev,
+      [key]: value === "" ? "" : Number(value),
+    }));
   }
 
-  async function runSimulation() {
+  function toggleTargetSpecies(species) {
+    setTargetSpecies((prev) =>
+      prev.includes(species)
+        ? prev.filter((s) => s !== species)
+        : [...prev, species],
+    );
+  }
+
+  function validateStep(stepIndex) {
+    if (stepIndex === 0) {
+      if (!runName.trim()) {
+        return "Run Name is required.";
+      }
+      if (!scenario.trim()) {
+        return "Scenario is required.";
+      }
+    }
+    if (stepIndex === 1) {
+      if (!environment.trim()) {
+        return "Please select an environment.";
+      }
+      if (targetSpecies.length === 0) {
+        return "Select at least one target species.";
+      }
+    }
+    if (stepIndex === 2) {
+      if (!(Number(sensitivity) > 0 && Number(sensitivity) <= 1)) {
+        return "Sensitivity must be between 0 and 1.";
+      }
+      if (
+        !(Number(confidenceThreshold) > 0 && Number(confidenceThreshold) <= 1)
+      ) {
+        return "Confidence Threshold must be between 0 and 1.";
+      }
+      if (!(Number(sampleRate) >= 8000 && Number(sampleRate) <= 192000)) {
+        return "Sample Rate must be between 8000 and 192000 Hz.";
+      }
+    }
+    return "";
+  }
+
+  function handleNext() {
+    const error = validateStep(currentStep);
+    if (error) {
+      setValidationError(error);
+      return;
+    }
+    setValidationError("");
+    goNext();
+  }
+
+  async function submitRun() {
     setWorkflow("loading");
-    setIsLoading(true);
 
     try {
-      const uploadEntries = Object.entries(mediaFiles).filter(
-        ([, entry]) => entry && entry.file,
-      );
-      const payloadMediaFiles = {};
-      for (const [nodeId, entry] of uploadEntries) {
-        const response = await uploadAudio({ file: entry.file, nodeId });
+      let mediaFiles = {};
+      if (audioFile) {
+        const response = await uploadAudio({
+          file: audioFile,
+          nodeId: "SHAMAN",
+        });
         if (response?.saved_path) {
-          payloadMediaFiles[nodeId] = response.saved_path;
+          mediaFiles.SHAMAN = response.saved_path;
         }
       }
-      const hasAudioUploads = Object.keys(payloadMediaFiles).length > 0;
 
-      // Create run data
       const runData = {
         name:
           runName ||
           `Run-${new Date().toISOString().split("T")[0]}-${Date.now() % 10000}`,
-        scenario: "MVP Simulation",
-        shamani: shamanIProcessor,
-        shamanii: shamanIIProcessor,
-        duration: "24h",
+        description,
+        scenario,
+        environment,
+        targetSpecies,
+        sensitivity: Number(sensitivity),
+        confidenceThreshold: Number(confidenceThreshold),
+        sampleRate: Number(sampleRate),
+        shamanProcessor,
+        duration,
         status: "pass",
-        nodes: nodes.map((n) => ({
-          id: n.id,
-          label: n.label,
-          role: n.role,
-          x: n.x,
-          y: n.y,
-          realX: n.lat ?? n.realX ?? null,
-          realY: n.lon ?? n.realY ?? null,
-          lat: n.lat ?? n.realX ?? null,
-          lon: n.lon ?? n.realY ?? null,
-        })),
-        edges: edges.map((e) => ({
-          from: e.from,
-          to: e.to,
-        })),
-        mediaFiles: payloadMediaFiles,
-        shamanIConfig,
-        shamanIIConfig,
+        nodes: [
+          {
+            id: "SHAMAN",
+            label: "Shaman Node",
+            role: "sensor",
+            x: 0.5,
+            y: 0.5,
+          },
+        ],
+        edges: [],
+        mediaFiles,
+        shamanConfig: {
+          batteryLife: batteryCapacity,
+          components,
+        },
         stage1Config,
-        stage4Config,
       };
 
-      // POST to backend via API client
       const result = await createRun(runData);
 
-      if (hasAudioUploads) {
+      if (Object.keys(mediaFiles).length > 0) {
         await waitForRunCompletion(result.id);
       }
 
-      setIsLoading(false);
       setWorkflow("confirm");
       setConfirmMessage(
         `Simulation created successfully!\n\nRun ID: ${result.id}\nRun Name: ${result.name}`,
       );
     } catch (err) {
-      setIsLoading(false);
       setWorkflow("confirm");
       setConfirmMessage(`Simulation failed: ${err.message || "Unknown error"}`);
     }
   }
 
   function closeConfirmation() {
-    // Reset workflow
-    setWorkflow("design");
-    resetConfigSteps();
+    setWorkflow("configure");
+    resetSteps();
     setConfirmMessage("");
-    setNodes([]);
-    setEdges([]);
-    setMediaFiles({});
+    setValidationError("");
+    setRunName("");
+    setDescription("");
+    setEnvironment("Tropical Forest");
+    setTargetSpecies([]);
+    setSensitivity(0.5);
+    setConfidenceThreshold(0.75);
+    setSampleRate(48000);
+    setDuration("24h");
+    setScenario("MVP Simulation");
+    setShamanProcessor("ESP32");
+    setBatteryCapacity(30);
+    setComponents(buildDefaultComponents());
     setStage1Config({ ...STAGE1_DEFAULTS });
-    setStage4Config({ ...STAGE4_DEFAULTS });
-    setCoordLat("");
-    setCoordLon("");
-    setCoordError("");
-    setShamanIConfig(new ComponentPowerModel(30));
-    setShamanIIConfig(new ComponentPowerModel());
-    // Navigate to run selector if run was created
-    if (onRunCreated) {
-      onRunCreated();
-    }
+    setAudioFile(null);
+    if (onRunCreated) onRunCreated();
   }
 
-  function zoomIn() {
-    const s = stateRef.current;
-    s.zoom = Math.max(MIN_ZOOM, Math.min(3, s.zoom * 1.2));
-    clampPan();
-  }
+  const stepContent = [
+    // Step 0: General
+    <div key="general" className="modal-section">
+      <div className="modal-label">General Configuration</div>
 
-  function zoomOut() {
-    const s = stateRef.current;
-    s.zoom = Math.max(MIN_ZOOM, Math.min(3, s.zoom * 0.8));
-    clampPan();
-  }
+      <div className="scp-input-group">
+        <label className="scp-label">Run Name *</label>
+        <input
+          type="text"
+          className="scp-input"
+          value={runName}
+          onChange={(e) => setRunName(e.target.value)}
+          placeholder="My Shaman Run"
+        />
+      </div>
 
-  function recenter() {
-    stateRef.current.zoom = 1;
-    stateRef.current.panX = 0;
-    stateRef.current.panY = 0;
-  }
+      <div className="scp-input-group">
+        <label className="scp-label">Description</label>
+        <textarea
+          className="scp-input"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Short summary of what this run is testing…"
+          rows={3}
+          style={{ resize: "vertical", minHeight: 60, fontFamily: "inherit" }}
+        />
+      </div>
 
-  function coerceNumberInput(value) {
-    if (value === "" || value === null || value === undefined) return "";
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? "" : parsed;
-  }
+      <div className="scp-input-group">
+        <label className="scp-label">Scenario *</label>
+        <input
+          type="text"
+          className="scp-input"
+          value={scenario}
+          onChange={(e) => setScenario(e.target.value)}
+        />
+      </div>
 
-  const configSteps = [
-    {
-      id: "shamanI",
-      title: "Power Configuration: Shaman I",
-      content: (
-        <div className="modal-section">
-          <div className="modal-label">Shaman I Configuration</div>
-
-          <div className="scp-input-group">
-            <label className="scp-label">Processor:</label>
-            <select
-              className="scp-input"
-              value={shamanIProcessor}
-              onChange={(e) => setShamanIProcessor(e.target.value)}
-            >
-              <option value="ESP32">ESP32</option>
-              <option value="Radxa Zero">Radxa Zero</option>
-              <option value="Raspberry Pi">Raspberry Pi</option>
-              <option value="Custom">Custom</option>
-            </select>
-          </div>
-
-          <div className="scp-input-group">
-            <label className="scp-label">Component Power Model</label>
-          </div>
-          <div
-            style={{
-              fontSize: "10px",
-              color: "var(--text-muted)",
-              marginBottom: "12px",
-              lineHeight: "1.4",
-            }}
-          >
-            Enter <strong>Current (mA) + Voltage (V)</strong> OR just{" "}
-            <strong>Power (W)</strong> for each component.
-          </div>
-
-          <div className="scp-input-group">
-            <label className="scp-label">Battery Capacity (Wh):</label>
-            <input
-              type="number"
-              className="scp-input"
-              value={shamanIConfig.batteryLife}
-              onChange={(e) =>
-                setShamanIConfig(
-                  new ComponentPowerModel(
-                    e.target.value,
-                    shamanIConfig.components,
-                  ),
-                )
-              }
-              step="0.1"
-            />
-          </div>
-
-          <div style={{ overflowX: "auto", marginTop: "12px" }}>
-            <table
-              style={{
-                width: "100%",
-                fontSize: "10px",
-                borderCollapse: "collapse",
-              }}
-            >
-              <thead>
-                <tr
-                  style={{
-                    borderBottom: "1px solid var(--border)",
-                    fontWeight: "600",
-                  }}
-                >
-                  <th style={{ padding: "8px 4px", textAlign: "left" }}>
-                    Component
-                  </th>
-                  <th style={{ padding: "8px 4px", textAlign: "right" }}>
-                    Current (mA)
-                  </th>
-                  <th style={{ padding: "8px 4px", textAlign: "right" }}>
-                    Voltage (V)
-                  </th>
-                  <th style={{ padding: "8px 4px", textAlign: "right" }}>
-                    Power (W)
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(shamanIConfig.components).map(
-                  ([name, cvp]) => (
-                    <tr
-                      key={name}
-                      style={{
-                        borderBottom: "1px solid var(--border-muted)",
-                      }}
-                    >
-                      <td
-                        style={{
-                          padding: "8px 4px",
-                          color: "var(--text-primary)",
-                        }}
-                      >
-                        {formatComponentLabel(name)}
-                      </td>
-                      <td style={{ padding: "4px" }}>
-                        <input
-                          type="number"
-                          className="scp-input"
-                          placeholder="—"
-                          value={cvp.current ?? ""}
-                          onChange={(e) => {
-                            const newVal = e.target.value
-                              ? parseFloat(e.target.value)
-                              : null;
-                            shamanIConfig.components[name].current = newVal;
-                            setShamanIConfig(
-                              new ComponentPowerModel(
-                                shamanIConfig.batteryLife,
-                                { ...shamanIConfig.components },
-                              ),
-                            );
-                          }}
-                          step="0.1"
-                          style={{ width: "100%" }}
-                        />
-                      </td>
-                      <td style={{ padding: "4px" }}>
-                        <input
-                          type="number"
-                          className="scp-input"
-                          placeholder="—"
-                          value={cvp.voltage ?? ""}
-                          onChange={(e) => {
-                            const newVal = e.target.value
-                              ? parseFloat(e.target.value)
-                              : null;
-                            shamanIConfig.components[name].voltage = newVal;
-                            setShamanIConfig(
-                              new ComponentPowerModel(
-                                shamanIConfig.batteryLife,
-                                { ...shamanIConfig.components },
-                              ),
-                            );
-                          }}
-                          step="0.1"
-                          style={{ width: "100%" }}
-                        />
-                      </td>
-                      <td style={{ padding: "4px" }}>
-                        <input
-                          type="number"
-                          className="scp-input"
-                          placeholder="—"
-                          value={cvp.power ?? ""}
-                          onChange={(e) => {
-                            const newVal = e.target.value
-                              ? parseFloat(e.target.value)
-                              : null;
-                            shamanIConfig.components[name].power = newVal;
-                            setShamanIConfig(
-                              new ComponentPowerModel(
-                                shamanIConfig.batteryLife,
-                                { ...shamanIConfig.components },
-                              ),
-                            );
-                          }}
-                          step="0.001"
-                          style={{ width: "100%" }}
-                        />
-                      </td>
-                    </tr>
-                  ),
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: "shamanII",
-      title: "Power Configuration: Shaman II",
-      content: (
-        <div className="modal-section">
-          <div className="modal-label">Shaman II Configuration</div>
-
-          <div className="scp-input-group">
-            <label className="scp-label">Processor:</label>
-            <select
-              className="scp-input"
-              value={shamanIIProcessor}
-              onChange={(e) => setShamanIIProcessor(e.target.value)}
-            >
-              <option value="ESP32">ESP32</option>
-              <option value="Radxa Zero">Radxa Zero</option>
-              <option value="Raspberry Pi">Raspberry Pi</option>
-              <option value="Custom">Custom</option>
-            </select>
-          </div>
-
-          <div className="scp-input-group">
-            <label className="scp-label">Component Power Model</label>
-          </div>
-          <div
-            style={{
-              fontSize: "10px",
-              color: "var(--text-muted)",
-              marginBottom: "12px",
-              lineHeight: "1.4",
-            }}
-          >
-            Enter <strong>Current (mA) + Voltage (V)</strong> OR just{" "}
-            <strong>Power (W)</strong> for each component.
-          </div>
-
-          <div className="scp-input-group">
-            <label className="scp-label">Battery Capacity (Wh):</label>
-            <input
-              type="number"
-              className="scp-input"
-              value={shamanIIConfig.batteryLife}
-              onChange={(e) =>
-                setShamanIIConfig(
-                  new ComponentPowerModel(
-                    e.target.value,
-                    shamanIIConfig.components,
-                  ),
-                )
-              }
-              step="0.1"
-            />
-          </div>
-
-          <div style={{ overflowX: "auto", marginTop: "12px" }}>
-            <table
-              style={{
-                width: "100%",
-                fontSize: "10px",
-                borderCollapse: "collapse",
-              }}
-            >
-              <thead>
-                <tr
-                  style={{
-                    borderBottom: "1px solid var(--border)",
-                    fontWeight: "600",
-                  }}
-                >
-                  <th style={{ padding: "8px 4px", textAlign: "left" }}>
-                    Component
-                  </th>
-                  <th style={{ padding: "8px 4px", textAlign: "right" }}>
-                    Current (mA)
-                  </th>
-                  <th style={{ padding: "8px 4px", textAlign: "right" }}>
-                    Voltage (V)
-                  </th>
-                  <th style={{ padding: "8px 4px", textAlign: "right" }}>
-                    Power (W)
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(shamanIIConfig.components).map(
-                  ([name, cvp]) => (
-                    <tr
-                      key={name}
-                      style={{
-                        borderBottom: "1px solid var(--border-muted)",
-                      }}
-                    >
-                      <td
-                        style={{
-                          padding: "8px 4px",
-                          color: "var(--text-primary)",
-                        }}
-                      >
-                        {formatComponentLabel(name)}
-                      </td>
-                      <td style={{ padding: "4px" }}>
-                        <input
-                          type="number"
-                          className="scp-input"
-                          placeholder="—"
-                          value={cvp.current ?? ""}
-                          onChange={(e) => {
-                            const newVal = e.target.value
-                              ? parseFloat(e.target.value)
-                              : null;
-                            shamanIIConfig.components[name].current = newVal;
-                            setShamanIIConfig(
-                              new ComponentPowerModel(
-                                shamanIIConfig.batteryLife,
-                                { ...shamanIIConfig.components },
-                              ),
-                            );
-                          }}
-                          step="0.1"
-                          style={{ width: "100%" }}
-                        />
-                      </td>
-                      <td style={{ padding: "4px" }}>
-                        <input
-                          type="number"
-                          className="scp-input"
-                          placeholder="—"
-                          value={cvp.voltage ?? ""}
-                          onChange={(e) => {
-                            const newVal = e.target.value
-                              ? parseFloat(e.target.value)
-                              : null;
-                            shamanIIConfig.components[name].voltage = newVal;
-                            setShamanIIConfig(
-                              new ComponentPowerModel(
-                                shamanIIConfig.batteryLife,
-                                { ...shamanIIConfig.components },
-                              ),
-                            );
-                          }}
-                          step="0.1"
-                          style={{ width: "100%" }}
-                        />
-                      </td>
-                      <td style={{ padding: "4px" }}>
-                        <input
-                          type="number"
-                          className="scp-input"
-                          placeholder="—"
-                          value={cvp.power ?? ""}
-                          onChange={(e) => {
-                            const newVal = e.target.value
-                              ? parseFloat(e.target.value)
-                              : null;
-                            shamanIIConfig.components[name].power = newVal;
-                            setShamanIIConfig(
-                              new ComponentPowerModel(
-                                shamanIIConfig.batteryLife,
-                                { ...shamanIIConfig.components },
-                              ),
-                            );
-                          }}
-                          step="0.001"
-                          style={{ width: "100%" }}
-                        />
-                      </td>
-                    </tr>
-                  ),
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: "media",
-      title: "Connect Media Files",
-      content: (
-        <div className="modal-section">
-          <div className="modal-label">
-            Select audio/video files for Shaman I nodes
-          </div>
-          {nodes
-            .filter((node) => node.label.includes("Shaman I "))
-            .map((node) => (
-              <div key={node.id} className="modal-file-group">
-                <label className="modal-file-label">
-                  {node.id} — {node.label}
-                </label>
-                <input
-                  type="file"
-                  className="modal-file-input"
-                  accept="audio/*,video/*"
-                  onChange={(e) =>
-                    handleMediaFileChange(node.id, e.target.files?.[0])
-                  }
-                />
-                {mediaFiles[node.id]?.file && (
-                  <div className="modal-file-selected">
-                    ✓ {mediaFiles[node.id].file.name}
-                  </div>
-                )}
-              </div>
-            ))}
-        </div>
-      ),
-    },
-    {
-      id: "stage1",
-      title: "Stage 1: Event Detection",
-      content: (
-        <div className="modal-section">
-          <div className="modal-label">Candidate Generation Defaults</div>
-          <div className="modal-helper">
-            Applies to all nodes and clips for Stage 1 prefiltering.
-          </div>
-          <div className="modal-grid">
-            {STAGE1_FIELDS.map((field) => (
-              <div className="scp-input-group" key={field.key}>
-                <label className="scp-label">{field.label}</label>
-                <input
-                  type="number"
-                  className="scp-input"
-                  value={stage1Config[field.key] ?? ""}
-                  step={field.step}
-                  onChange={(e) => {
-                    const nextValue = coerceNumberInput(e.target.value);
-                    setStage1Config((prev) => ({
-                      ...prev,
-                      [field.key]: nextValue,
-                    }));
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: "stage4",
-      title: "Stage 4: Human Presence",
-      content: (
-        <div className="modal-section">
-          <div className="modal-label">Human Presence Feature Inputs</div>
-          <div className="modal-helper">
-            Provide defaults for per-clip metadata, weather, and audio features.
-          </div>
-          {STAGE4_GROUPS.map((group) => (
-            <div className="modal-subsection" key={group.title}>
-              <div className="modal-subsection-title">{group.title}</div>
-              <div className="modal-grid">
-                {group.fields.map((field) => (
-                  <div className="scp-input-group" key={field.key}>
-                    <label className="scp-label">{field.label}</label>
-                    <input
-                      type={field.type || "text"}
-                      className="scp-input"
-                      value={stage4Config[field.key] ?? ""}
-                      placeholder={field.placeholder}
-                      step={field.type === "number" ? field.step : undefined}
-                      onChange={(e) => {
-                        const rawValue = e.target.value;
-                        const nextValue =
-                          field.type === "number"
-                            ? coerceNumberInput(rawValue)
-                            : rawValue;
-                        setStage4Config((prev) => ({
-                          ...prev,
-                          [field.key]: nextValue,
-                        }));
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
+      <div className="scp-input-group">
+        <label className="scp-label">Duration</label>
+        <select
+          className="scp-input"
+          value={duration}
+          onChange={(e) => setDuration(e.target.value)}
+        >
+          {DURATION_OPTIONS.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
           ))}
-        </div>
-      ),
-    },
-    {
-      id: "details",
-      title: "Configure Details",
-      content: (
-        <div className="modal-section">
-          <div className="modal-label">Configure Run Details</div>
-          <div className="scp-input-group">
-            <label className="scp-label">Run Name:</label>
-            <input
-              className="scp-input"
-              value={runName}
-              onChange={(e) => setRunName(e.target.value)}
-            />
-          </div>
+        </select>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Shaman Processor</label>
+        <select
+          className="scp-input"
+          value={shamanProcessor}
+          onChange={(e) => setShamanProcessor(e.target.value)}
+        >
+          {PROCESSOR_OPTIONS.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Node Audio (optional)</label>
+        <input
+          type="file"
+          accept="audio/*"
+          onChange={(e) => setAudioFile(e.target.files?.[0] || null)}
+        />
+        {audioFile && (
           <div
-            style={{
-              fontSize: "11px",
-              color: "var(--text-muted)",
-              lineHeight: "1.5",
-            }}
-          ></div>
+            style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 6 }}
+          >
+            {audioFile.name}
+          </div>
+        )}
+      </div>
+    </div>,
+
+    // Step 1: Environment & Target
+    <div key="environment" className="modal-section">
+      <div className="modal-label">Environment & Target</div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Environment *</label>
+        <select
+          className="scp-input"
+          value={environment}
+          onChange={(e) => setEnvironment(e.target.value)}
+        >
+          {ENVIRONMENT_OPTIONS.map((env) => (
+            <option key={env} value={env}>
+              {env}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Target Species *</label>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 6,
+            padding: 6,
+            border: "1px solid var(--border)",
+            borderRadius: 4,
+            background: "var(--bg-tertiary)",
+          }}
+        >
+          {TARGET_SPECIES_PRESETS.map((species) => {
+            const checked = targetSpecies.includes(species);
+            return (
+              <label
+                key={species}
+                className="scp-radio"
+                style={{ padding: "4px 6px" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggleTargetSpecies(species)}
+                />
+                <span style={{ fontSize: 10 }}>{species}</span>
+              </label>
+            );
+          })}
         </div>
-      ),
-    },
+        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}>
+          {targetSpecies.length} selected
+        </div>
+      </div>
+    </div>,
+
+    // Step 2: Parameters
+    <div key="parameters" className="modal-section">
+      <div className="modal-label">Parameters</div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">
+          Detection Sensitivity ({Number(sensitivity).toFixed(2)})
+        </label>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          value={sensitivity}
+          onChange={(e) => setSensitivity(Number(e.target.value))}
+          style={{ width: "100%" }}
+        />
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Confidence Threshold</label>
+        <input
+          type="number"
+          className="scp-input"
+          value={confidenceThreshold}
+          onChange={(e) => setConfidenceThreshold(e.target.value)}
+          step="0.01"
+          min="0"
+          max="1"
+        />
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Target Sample Rate (Hz)</label>
+        <input
+          type="number"
+          className="scp-input"
+          value={sampleRate}
+          onChange={(e) => setSampleRate(e.target.value)}
+          step="1000"
+          min="8000"
+          max="192000"
+        />
+      </div>
+    </div>,
+
+    // Step 1: Power
+    <div key="power" className="modal-section">
+      <div className="modal-label">Shaman Power Configuration</div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Battery Capacity (Wh)</label>
+        <input
+          type="number"
+          className="scp-input"
+          value={batteryCapacity}
+          onChange={(e) => setBatteryCapacity(Number(e.target.value))}
+          step="0.1"
+        />
+      </div>
+
+      <div
+        style={{
+          fontSize: 10,
+          color: "var(--text-muted)",
+          margin: "12px 0",
+          lineHeight: 1.4,
+        }}
+      >
+        Enter <strong>Current (mA) + Voltage (V)</strong> OR just{" "}
+        <strong>Power (W)</strong> for each component.
+      </div>
+
+      <div style={{ overflowX: "auto" }}>
+        <table
+          style={{ width: "100%", fontSize: 10, borderCollapse: "collapse" }}
+        >
+          <thead>
+            <tr
+              style={{
+                borderBottom: "1px solid var(--border)",
+                fontWeight: 600,
+              }}
+            >
+              <th style={{ padding: "8px 4px", textAlign: "left" }}>
+                Component
+              </th>
+              <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                Current (mA)
+              </th>
+              <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                Voltage (V)
+              </th>
+              <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                Power (W)
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {COMPONENT_FIELDS.map(({ key, label }) => {
+              const cvp = components[key] || Cvp();
+              return (
+                <tr
+                  key={key}
+                  style={{ borderBottom: "1px solid var(--border-muted)" }}
+                >
+                  <td style={{ padding: "8px 4px" }}>{label}</td>
+                  <td style={{ padding: "4px" }}>
+                    <input
+                      type="number"
+                      className="scp-input"
+                      placeholder="—"
+                      value={formatNumber(cvp.current)}
+                      onChange={(e) =>
+                        updateComponent(key, "current", e.target.value)
+                      }
+                      step="0.1"
+                      style={{ width: "100%" }}
+                    />
+                  </td>
+                  <td style={{ padding: "4px" }}>
+                    <input
+                      type="number"
+                      className="scp-input"
+                      placeholder="—"
+                      value={formatNumber(cvp.voltage)}
+                      onChange={(e) =>
+                        updateComponent(key, "voltage", e.target.value)
+                      }
+                      step="0.1"
+                      style={{ width: "100%" }}
+                    />
+                  </td>
+                  <td style={{ padding: "4px" }}>
+                    <input
+                      type="number"
+                      className="scp-input"
+                      placeholder="—"
+                      value={formatNumber(cvp.power)}
+                      onChange={(e) =>
+                        updateComponent(key, "power", e.target.value)
+                      }
+                      step="0.001"
+                      style={{ width: "100%" }}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>,
+
+    // Step 2: Stage 1
+    <div key="stage1" className="modal-section">
+      <div className="modal-label">Stage 1: Audio Filtering</div>
+      <div
+        style={{
+          fontSize: 10,
+          color: "var(--text-muted)",
+          marginBottom: 12,
+          lineHeight: 1.4,
+        }}
+      >
+        Configure the parameters for the first stage of the audio pipeline.
+      </div>
+
+      {STAGE1_FIELDS.map((field) => (
+        <div className="scp-input-group" key={field.key}>
+          <label className="scp-label">{field.label}</label>
+          <input
+            type={field.type}
+            className="scp-input"
+            value={stage1Config[field.key]}
+            onChange={(e) => updateStage1(field.key, e.target.value)}
+            step={field.step}
+          />
+        </div>
+      ))}
+    </div>,
+
+    // Step 5: Review
+    <div key="review" className="modal-section">
+      <div className="modal-label">Review Configuration</div>
+      <div
+        style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}
+      >
+        Confirm the run settings before submitting.
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Run Name</label>
+        <div className="scp-input" style={{ background: "var(--bg-muted)" }}>
+          {runName || "(auto-generated)"}
+        </div>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Description</label>
+        <div
+          className="scp-input"
+          style={{ background: "var(--bg-muted)", whiteSpace: "pre-wrap" }}
+        >
+          {description || "(none)"}
+        </div>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Scenario</label>
+        <div className="scp-input" style={{ background: "var(--bg-muted)" }}>
+          {scenario}
+        </div>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Environment</label>
+        <div className="scp-input" style={{ background: "var(--bg-muted)" }}>
+          {environment}
+        </div>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Target Species</label>
+        <div className="scp-input" style={{ background: "var(--bg-muted)" }}>
+          {targetSpecies.length > 0 ? targetSpecies.join(", ") : "(none)"}
+        </div>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">
+          Sensitivity / Confidence / Sample Rate
+        </label>
+        <div className="scp-input" style={{ background: "var(--bg-muted)" }}>
+          {Number(sensitivity).toFixed(2)} /{" "}
+          {Number(confidenceThreshold).toFixed(2)} / {sampleRate} Hz
+        </div>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Duration</label>
+        <div className="scp-input" style={{ background: "var(--bg-muted)" }}>
+          {duration}
+        </div>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Shaman Processor</label>
+        <div className="scp-input" style={{ background: "var(--bg-muted)" }}>
+          {shamanProcessor}
+        </div>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Battery Capacity</label>
+        <div className="scp-input" style={{ background: "var(--bg-muted)" }}>
+          {batteryCapacity} Wh
+        </div>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Reference Audio</label>
+        <div className="scp-input" style={{ background: "var(--bg-muted)" }}>
+          {audioFile ? audioFile.name : "(none)"}
+        </div>
+      </div>
+    </div>,
   ];
 
-  const {
-    activeIndex: configStepIndex,
-    goToStep: goToConfigStep,
-    next: nextConfigStep,
-    prev: prevConfigStep,
-    reset: resetConfigSteps,
-    isFirst: isConfigFirst,
-    isLast: isConfigLast,
-  } = useStepNavigator(configSteps.length, 0);
-
-  const selectedLat =
-    selectedNode && Number.isFinite(selectedNode.lat)
-      ? selectedNode.lat
-      : selectedNode?.realX;
-  const selectedLon =
-    selectedNode && Number.isFinite(selectedNode.lon)
-      ? selectedNode.lon
-      : selectedNode?.realY;
-  const selectedCoordsText = selectedNode
-    ? formatLatLonDMS(selectedLat, selectedLon)
-    : null;
-  const mouseCoordsText = formatLatLonDMS(mouseCoords.lat, mouseCoords.lon);
-
-  const osaMapBoundsMinText = formatLatLonDMS(OSA_MAP_BOUNDS.latMin, OSA_MAP_BOUNDS.lonMin);
-  
-  const osaMapBoundsMaxText = formatLatLonDMS(OSA_MAP_BOUNDS.latMax, OSA_MAP_BOUNDS.lonMax);
   return (
-    <div
-      style={{ position: "relative", width: "100%", height: "100%" }}
-      id="pageCreateRun"
-    >
-      <canvas
-        id="createRunCanvas"
-        ref={canvasRef}
-        style={{
-          width: "100%",
-          height: "100%",
-          cursor: "grab",
-          display: "block",
-        }}
-      ></canvas>
-
-      {/* Toolbar (top-left) */}
-      <div className="create-toolbar top-left">
-        <div className="toolbar-title">Create Topology</div>
-        <button
-          className="toolbar-btn"
-          onMouseDown={(e) => startToolbarDrag(e, "command")}
-          title="Click canvas to place Command Center"
-        >
-          + Command
-        </button>
-        <button
-          className="toolbar-btn"
-          onMouseDown={(e) => startToolbarDrag(e, "relay")}
-          title="Click canvas to place Shaman II (Relay)"
-        >
-          + Shaman II
-        </button>
-        <button
-          className="toolbar-btn"
-          onMouseDown={(e) => startToolbarDrag(e, "sensor")}
-          title="Click canvas to place Shaman I (Sensor)"
-        >
-          + Shaman I
-        </button>
-
-        <div className="coord-panel-title">Insert at Lat/Lon</div>
-        <select
-          className="coord-input"
-          value={coordNodeType}
-          onChange={(e) => setCoordNodeType(e.target.value)}
-        >
-          <option value="command">Command Center</option>
-          <option value="relay">Shaman II</option>
-          <option value="sensor">Shaman I</option>
-        </select>
-        <input
-          className="coord-input"
-          type="number"
-          placeholder={`Lat (${osaMapBoundsMinText.lat} to ${osaMapBoundsMaxText.lat})`}
-          value={coordLat}
-          onChange={(e) => setCoordLat(e.target.value)}
-        />
-        <input
-          className="coord-input"
-          type="number"
-          placeholder={`Lon (${osaMapBoundsMinText.lon} to ${osaMapBoundsMaxText.lon})`}
-          value={coordLon}
-          onChange={(e) => setCoordLon(e.target.value)}
-        />
-        <button className="toolbar-btn" onClick={insertNodeAtRealCoordinate}>
-          Insert Node
-        </button>
-        {coordError ? <div className="coord-error">{coordError}</div> : null}
-
-        <div className="toolbar-divider"></div>
-        <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-          <div>Nodes: {nodes.length}</div>
-          <div>Edges: {edges.length}</div>
+    <div style={{ overflowY: "auto", padding: 24 }}>
+      <div className="pg-header">
+        <div>
+          <div className="pg-title">Create New Run</div>
+          <p>Configure a simulation run for a single Shaman node.</p>
         </div>
       </div>
 
-      {/* Zoom controls (top-right) */}
-      <div
-        className={`map-cursor-popup ${
-          mouseCoords.visible || selectedNode ? "visible" : ""
-        }`}
-      >
-        {selectedNode ? (
-          <>
-            <div className="map-cursor-row" style={{ fontWeight: 600 }}>
-              Selected {selectedNode.id}
-            </div>
-            <div className="map-cursor-row">
-              Lat: {selectedCoordsText?.lat ?? "N/A"}
-            </div>
-            <div className="map-cursor-row">
-              Lon: {selectedCoordsText?.lon ?? "N/A"}
-            </div>
-            {mouseCoords.visible ? (
+      {workflow === "configure" && (
+        <div className="create-run-config">
+          <ModalStepper
+            steps={stepDefs.map((s) => s.title)}
+            currentStep={currentStep}
+          />
+          <div className="modal-content">
+            {validationError && (
               <div
                 style={{
-                  height: "1px",
-                  background: "var(--border)",
-                  margin: "6px 0",
-                  opacity: 0.6,
+                  padding: "8px 12px",
+                  background: "rgba(239, 68, 68, 0.1)",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  borderRadius: 4,
+                  color: "var(--red)",
+                  fontSize: 12,
+                  marginBottom: 12,
                 }}
-              ></div>
-            ) : null}
-          </>
-        ) : null}
-        {mouseCoords.visible ? (
-          <>
-            <div className="map-cursor-row">
-              Lat: {mouseCoordsText.lat}
-            </div>
-            <div className="map-cursor-row">
-              Lon: {mouseCoordsText.lon}
-            </div>
-          </>
-        ) : null}
-      </div>
-
-      <div className="map-zoom">
-        <button className="zoom-btn" onClick={zoomIn} title="Zoom In">
-          +
-        </button>
-        <button className="zoom-btn" onClick={zoomOut} title="Zoom Out">
-          −
-        </button>
-        <button
-          className="zoom-btn recenter"
-          onClick={recenter}
-          title="Recenter"
-        >
-          ⌖
-        </button>
-      </div>
-
-      {/* Legend (bottom-left) */}
-      <div className="map-ov bottom-left">
-        <div className="ov-title">Legend</div>
-        <div className="legend-row">
-          <div
-            className="legend-swatch"
-            style={{
-              background: "#00e5ff",
-              borderColor: "#00e5ff",
-              width: "14px",
-              height: "14px",
-            }}
-          ></div>
-          <span> Command Center</span>
-        </div>
-        <div className="legend-row">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            style={{ flexShrink: 0 }}
-          >
-            <rect
-              x="1"
-              y="1"
-              width="12"
-              height="12"
-              rx="3"
-              fill="#a78bfa"
-              stroke="#a78bfa"
-              strokeWidth="1.5"
-            ></rect>
-          </svg>
-          <span> Shaman II (Relay)</span>
-        </div>
-        <div className="legend-row">
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            style={{ flexShrink: 0 }}
-          >
-            <polygon
-              points="7,1 13,13 1,13"
-              fill="#00e68a"
-              stroke="#00e68a"
-              strokeWidth="1.5"
-            ></polygon>
-          </svg>
-          <span> Shaman I (Sensor)</span>
-        </div>
-        <div
-          style={{
-            height: "1px",
-            background: "var(--border)",
-            margin: "8px 0 6px",
-          }}
-        ></div>
-        <div
-          style={{
-            fontSize: "9px",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            color: "var(--text-muted)",
-            marginBottom: "4px",
-          }}
-        >
-          Connections
-        </div>
-        <div className="legend-row">
-          <div
-            style={{
-              width: "20px",
-              height: "3px",
-              borderRadius: "2px",
-              background: "#3b82f6",
-              flexShrink: 0,
-            }}
-          ></div>
-          <span>LoRa (Shaman II to Shaman II)</span>
-        </div>
-        <div className="legend-row">
-          <div
-            style={{
-              width: "20px",
-              height: "3px",
-              borderRadius: "2px",
-              background: "#ef4444",
-              flexShrink: 0,
-            }}
-          ></div>
-          <span>Wi-Fi (Shaman II to Shaman I)</span>
-        </div>
-        <div
-          style={{
-            fontSize: "10px",
-            color: "var(--text-muted)",
-            marginTop: "8px",
-          }}
-        >
-          <div>• Click nodes to connect</div>
-          <div>• Double-click to delete</div>
-          <div>• Right-click for menu</div>
-        </div>
-      </div>
-
-      {/* Workflow: Next Button (only on design phase) */}
-      {workflow === "design" && nodes.length > 0 && (
-        <div
-          style={{ position: "absolute", bottom: 20, right: 20, zIndex: 10 }}
-        >
-          <button
-            className="workflow-btn"
-            onClick={() => {
-              setWorkflow("configure");
-              resetConfigSteps();
-            }}
-            style={{
-              background: "var(--green)",
-              color: "var(--bg-deep)",
-              border: "1px solid var(--green)",
-              padding: "10px 16px",
-              borderRadius: "4px",
-              fontSize: "11px",
-              fontWeight: "700",
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.opacity = "0.9";
-              e.target.style.boxShadow = "0 0 12px rgba(0, 230, 138, 0.3)";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.opacity = "1";
-              e.target.style.boxShadow = "none";
-            }}
-          >
-            Configure Run
-          </button>
-        </div>
-      )}
-
-      {/* Configuration Wizard */}
-      {workflow === "configure" && (
-        <ModalStepper
-          open
-          steps={configSteps}
-          activeIndex={configStepIndex}
-          onStepChange={goToConfigStep}
-          dialogClassName="modal-dialog-fixed"
-          onClose={() => {
-            setWorkflow("design");
-            resetConfigSteps();
-          }}
-          footer={
-            <>
+              >
+                {validationError}
+              </div>
+            )}
+            {stepContent[currentStep]}
+            <div className="modal-actions">
               <button
-                className="modal-btn-cancel"
-                onClick={() => {
-                  if (isConfigFirst) {
-                    setWorkflow("design");
-                    resetConfigSteps();
-                  } else {
-                    prevConfigStep();
-                  }
-                }}
+                className="btn"
+                onClick={goBack}
+                disabled={currentStep === 0}
               >
                 Back
               </button>
-              <button
-                className="modal-btn-confirm"
-                onClick={() => {
-                  if (isConfigLast) {
-                    runSimulation();
-                  } else {
-                    nextConfigStep();
-                  }
-                }}
-              >
-                {isConfigLast ? "Run Simulation" : "Next"}
-              </button>
-            </>
-          }
-        />
-      )}
-
-      {/* Dialog: Loading Screen */}
-      {workflow === "loading" && (
-        <div className="modal-overlay">
-          <div className="modal-dialog modal-loading">
-            <div className="modal-spinner"></div>
-            <div className="modal-label" style={{ marginTop: "16px" }}>
-              Running simulation...
-            </div>
-            <div
-              style={{
-                fontSize: "10px",
-                color: "var(--text-muted)",
-                marginTop: "8px",
-              }}
-            >
-              Processing {nodes.length} nodes and {edges.length} connections
+              {currentStep < stepDefs.length - 1 ? (
+                <button className="btn btn-primary" onClick={handleNext}>
+                  Next
+                </button>
+              ) : (
+                <button className="btn btn-primary" onClick={submitRun}>
+                  Submit Run
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Dialog: Confirmation */}
+      {workflow === "loading" && (
+        <div className="create-run-config">
+          <div
+            className="modal-content"
+            style={{ textAlign: "center", padding: 48 }}
+          >
+            <div className="loading-spinner" />
+            <div style={{ marginTop: 12, color: "var(--text-muted)" }}>
+              Submitting run…
+            </div>
+          </div>
+        </div>
+      )}
+
       {workflow === "confirm" && (
-        <div className="modal-overlay">
-          <div className="modal-dialog">
-            <div className="modal-header">
-              <div className="modal-title">
-                {confirmMessage.includes("Error") ? "⚠ Error" : "✓ Success"}
-              </div>
+        <div className="create-run-config">
+          <div
+            className="modal-content"
+            style={{ textAlign: "center", padding: 48 }}
+          >
+            <div className="pg-title" style={{ marginBottom: 12 }}>
+              {confirmMessage.startsWith("Simulation created")
+                ? "Run Created"
+                : "Run Failed"}
             </div>
-            <div className="modal-body">
-              <div
-                style={{
-                  whiteSpace: "pre-wrap",
-                  fontSize: "11px",
-                  lineHeight: "1.6",
-                }}
-              >
-                {confirmMessage}
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="modal-btn-confirm" onClick={closeConfirmation}>
-                Done
-              </button>
-            </div>
+            <pre
+              style={{
+                color: "var(--text-muted)",
+                fontSize: 12,
+                whiteSpace: "pre-wrap",
+                marginBottom: 24,
+              }}
+            >
+              {confirmMessage}
+            </pre>
+            <button className="btn btn-primary" onClick={closeConfirmation}>
+              Continue
+            </button>
           </div>
         </div>
       )}

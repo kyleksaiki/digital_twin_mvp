@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react'
 import Topbar from './components/Topbar'
 import Sidebar from './components/Sidebar'
 import RunSelector from './components/RunSelector'
-import Overview from './components/Overview'
-import NetMap from './components/NetMap'
+import ModelPerformanceDashboard from './components/ModelPerformanceDashboard'
+import BatteryStatistics from './components/BatteryStatistics'
 import AISummary from './components/AISummary'
 import CreateRun from './components/CreateRun'
 import DetailPanel from './components/DetailPanel'
@@ -22,7 +22,7 @@ import './styles/CreateRun.css'
 import './styles/visuals.css'
 
 export default function App(){
-  const titles = { runsel:'Run Selector', overview:'Overview Dashboard', netmap:'Network Map', aisummary:'AI Assistant', create:'Create New Run' }
+  const titles = { runsel:'Run Selector', overview:'Model Performance Dashboard', netmap:'Battery Statistics', aisummary:'AI Assistant', create:'Create New Run' }
   const [page, setPage] = useState('runsel')
   const [loadedRun, setLoadedRun] = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
@@ -72,11 +72,11 @@ export default function App(){
       </div>
 
       <div className={`page ${page==='overview'?'active':''}`} id="pageOverview">
-        <Overview run={loadedRun} />
+        <ModelPerformanceDashboard run={loadedRun} />
       </div>
 
       <div className={`page ${page==='netmap'?'active':''}`} id="pageNetMap">
-        <NetMap run={loadedRun} onPanelOpen={(open)=>setPanelOpen(open)} onReroutes={setReroutes} />
+        <BatteryStatistics run={loadedRun} onPanelOpen={(open)=>setPanelOpen(open)} onReroutes={setReroutes} />
       </div>
 
       <div className={`page ${page==='aisummary'?'active':''}`} id="pageAISummary">

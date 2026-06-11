@@ -139,27 +139,39 @@
   font-size: 10px;
   margin-top: 4px;
 }
-
-.line-chart-wrap {
-  min-height: 280px;
-}
-
 .line-chart {
   width: 100%;
-  min-width: 680px;
   height: auto;
+  display: block; /* Prevents inline alignment spacing bugs */
+  overflow: visible; /* Prevents edge-case text clipping near margins */
 }
 
+/* Base styles for all chart typography */
+.line-chart-tick,
+.line-chart-axis-label {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  fill: var(--text-muted, #64748b); /* Fallback color if variable is missing */
+}
+
+/* Use responsive font sizes that adjust relative to the layout width */
 .line-chart-tick {
-  fill: var(--text-muted);
-  font-size: 10px;
-  font-family: var(--font-mono);
+  font-size: 13px;
 }
 
 .line-chart-axis-label {
-  fill: var(--text-secondary);
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 600;
+  fill: var(--text-main, #0f172a);
+}
+
+/* Mobile-specific adjustments to keep labels highly legible */
+@media (max-width: 640px) {
+  .line-chart-tick {
+    font-size: 18px; /* Pumps up font sizes scale-wise relative to viewBox */
+  }
+  .line-chart-axis-label {
+    font-size: 20px;
+  }
 }
 
 @media (max-width: 860px) {

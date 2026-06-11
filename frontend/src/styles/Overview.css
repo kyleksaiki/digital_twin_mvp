@@ -86,6 +86,19 @@
     border: 1px solid var(--border);
 }
 
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 10px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    letter-spacing: 0.3px;
+    line-height: 1.4;
+}
+
 .chip-pass {
     background: rgba(0,230,138,0.1);
     color: var(--green);
@@ -96,6 +109,12 @@
     background: rgba(255,190,46,0.1);
     color: var(--amber);
     border: 1px solid rgba(255,190,46,0.25);
+}
+
+.chip-fail {
+    background: rgba(239,68,68,0.1);
+    color: var(--red);
+    border: 1px solid rgba(239,68,68,0.25);
 }
 
 .metrics-row {
@@ -216,6 +235,76 @@
     height: 200px;
 }
 
+/* Pipeline Stages grid - compact, scannable layout */
+.pipeline-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.pipeline-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pipeline-card.chart-clickable:hover {
+    border-color: var(--border-active);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+
+.pipeline-card-hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.pipeline-card-hdr .chart-title {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.pipeline-card-hdr .chip {
+    font-size: 9px;
+    padding: 2px 7px;
+    flex-shrink: 0;
+}
+
+.pipeline-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    margin: 0;
+}
+
+.pipeline-stat .m-label {
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.pipeline-stat .m-value {
+    font-size: 15px;
+    margin-bottom: 0;
+    line-height: 1;
+}
+
+@media (max-width: 1100px) {
+    .pipeline-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+}
+
 @media (max-width: 860px) {
     #pageOverview {
         padding: 16px;
@@ -228,5 +317,15 @@
 
     .m-value {
         font-size: 22px;
+    }
+
+    .pipeline-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 520px) {
+    .pipeline-grid {
+        grid-template-columns: 1fr;
     }
 }

@@ -82,9 +82,11 @@ export default function AIAssistant({loadedRun}){
       <div className="pg-header">
         <div>
           <div className="pg-title">Ask the Assistant</div>
-          <p>Ask about run metrics, visualizations, or system behavior.
-          The assistant supports both general guidance and run-specific analysis as context grows.
-        </p>
+          <p>
+            Use the assistant to ask how the node
+            performed, how much power each component used, how the AI model
+            behaved, and what changes could improve the node&apos;s performance.
+          </p>
         </div>
       </div>
 

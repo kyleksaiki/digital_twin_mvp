@@ -3,6 +3,15 @@ import { fetchDashboard } from "../api";
 import Modal from "./common/Modal";
 import { ResponsiveBarChart } from "./common/SimpleCharts";
 
+/**
+ * ModelPerformanceDashboard
+ *
+ * Refocused dashboard that highlights the AI model performance and the
+ * five-stage audio pipeline. The previous latency and battery sections have
+ * been removed; battery information is now surfaced on the dedicated Battery
+ * Statistics page.
+ */
+
 function metricClassHigherBetter(value, goodMin, warnMin) {
   if (value == null) return "";
   if (value >= goodMin) return "pass-state";
@@ -17,14 +26,27 @@ function metricClassLowerBetter(value, goodMax, warnMax) {
   return "fail-state";
 }
 
-export default function Overview({ run }) {
+const PIPELINE_STAGES = [
+  { id: "stage1", label: "Stage 1: Audio Filtering" },
+  { id: "stage2", label: "Stage 2: Event Detection" },
+  { id: "stage3", label: "Stage 3: Feature Extraction" },
+  { id: "stage4", label: "Stage 4: Context Enrichment" },
+  { id: "stage5", label: "Stage 5: AI Classification" },
+];
+
+function buildStageChartData(pipelineStats) {
+  return PIPELINE_STAGES.map((stage) => {
+    const stats = pipelineStats?.[stage.id] || {};
+    const passed = Number(stats.passed) || 0;
+    const failed = Number(stats.failed) || 0;
+    return { label: stage.label.replace(/^Stage \d+: /, ""), value: passed, failed };
+  });
+}
+
+export default function ModelPerformanceDashboard({ run }) {
   const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [chartModal, setChartModal] = useState({
-    open: false,
-    type: null,
-    expanded: false,
-  });
+  const [stageModal, setStageModal] = useState({ open: false, stageId: null });
 
   useEffect(() => {
     if (!run?.id) return;
@@ -48,7 +70,7 @@ export default function Overview({ run }) {
 
   if (!run) {
     return (
-      <div id="pageOverview" style={{ overflowY: "auto", padding: 24 }}>
+      <div id="pageModelPerformance" style={{ overflowY: "auto", padding: 24 }}>
         <div
           style={{
             color: "var(--text-muted)",
@@ -57,7 +79,7 @@ export default function Overview({ run }) {
             fontSize: 14,
           }}
         >
-          Select a run from the Run Selector to view the dashboard.
+          Select a run from the Run Selector to view model performance.
         </div>
       </div>
     );
@@ -65,7 +87,7 @@ export default function Overview({ run }) {
 
   if (loading) {
     return (
-      <div id="pageOverview" style={{ overflowY: "auto", padding: 24 }}>
+      <div id="pageModelPerformance" style={{ overflowY: "auto", padding: 24 }}>
         <div
           style={{
             color: "var(--text-muted)",
@@ -74,7 +96,7 @@ export default function Overview({ run }) {
             fontSize: 14,
           }}
         >
-          Loading dashboard...
+          Loading model performance…
         </div>
       </div>
     );
@@ -82,7 +104,6 @@ export default function Overview({ run }) {
 
   const metrics = dashboard?.metrics || {};
   const runData = dashboard?.run || run;
-
   const detectionsData = (dashboard?.detections_by_type || [])
     .map((item) => ({
       label: item.event_type || item.label || "Unknown",
@@ -90,29 +111,26 @@ export default function Overview({ run }) {
     }))
     .sort((a, b) => b.value - a.value);
 
-  const latencyByRankData = (dashboard?.latency_by_rank || [])
-    .map((item) => ({
-      label: `Rank ${item.rank}`,
-      value: Number(item.latency_ms) || 0,
-    }))
-    .sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, { numeric: true }),
-    );
-
-  const chartConfig =
-    chartModal.type === "latency"
-      ? {
-          title: "Latency by Network Rank",
-          subtitle: "Full rank distribution for the selected run",
-          data: latencyByRankData,
-          formatter: (value) => `${value}ms`,
-        }
-      : {
-          title: "Detections by Type",
-          subtitle: "Full detection category distribution for the selected run",
-          data: detectionsData,
-          formatter: (value) => `${value}`,
-        };
+  const pipelineStats = dashboard?.pipeline_stats || {};
+  const stageChartData = buildStageChartData(pipelineStats);
+  const totalEvents = stageChartData.reduce(
+    (sum, s) => sum + s.value + (s.failed || 0),
+    0,
+  );
+  const totalFailed = stageChartData.reduce((sum, s) => sum + (s.failed || 0), 0);
+  const selectedStage = stageModal.stageId
+    ? PIPELINE_STAGES.find((s) => s.id === stageModal.stageId)
+    : null;
+  const selectedStageData = selectedStage
+    ? (() => {
+        const stats = pipelineStats[selectedStage.id] || {};
+        const detail = Array.isArray(stats.details) ? stats.details : [];
+        return detail.map((item) => ({
+          label: item.label || item.name || "Unknown",
+          value: Number(item.count) || 0,
+        }));
+      })()
+    : [];
 
   const statusChipClass =
     runData.status === "fail"
@@ -122,10 +140,17 @@ export default function Overview({ run }) {
         : "chip-pass";
 
   return (
-    <div id="pageOverview" style={{ overflowY: "auto", padding: 24 }}>
+    <div id="pageModelPerformance" style={{ overflowY: "auto", padding: 24 }}>
       <div className="overview-shell">
         <div className="overview-topbar">
-            <div className="pg-title">Loaded Run: {runData.name}</div>
+          <div className="pg-title">Model Performance Dashboard</div>
+          <div className="loaded-run-bar" style={{ marginTop: 6 }}>
+            <div className="dot"></div>
+            <span>Loaded Run: {runData.name}</span>
+            <span className={statusChipClass} style={{ marginLeft: 8 }}>
+              {runData.status || "unknown"}
+            </span>
+          </div>
         </div>
 
         <div className="metrics-row">
@@ -171,26 +196,6 @@ export default function Overview({ run }) {
             </div>
           </div>
 
-          <div
-            className={`metric-card ${metricClassLowerBetter(metrics.latency_ms, 50, 100)}`}
-          >
-            <div className="m-label">
-              Avg Inference Latency{" "}
-              <span className="help-icon">
-                ?
-                <span className="help-tip">
-                  Mean time from audio input to model output on node hardware.
-                </span>
-              </span>
-            </div>
-            <div className="m-value">
-              {metrics.latency_ms != null ? `${metrics.latency_ms}ms` : "—"}
-            </div>
-            <div className="m-trend" style={{ color: "var(--text-muted)" }}>
-              Baseline pending
-            </div>
-          </div>
-
           <div className="metric-card pass-state">
             <div className="m-label">
               Detection Count{" "}
@@ -209,47 +214,42 @@ export default function Overview({ run }) {
             </div>
           </div>
 
-          <div
-            className={`metric-card ${metricClassHigherBetter(metrics.battery_health, 60, 30)}`}
-          >
+          <div className="metric-card pass-state">
             <div className="m-label">
-              Battery Health{" "}
+              Pipeline Pass Rate{" "}
               <span className="help-icon">
                 ?
                 <span className="help-tip">
-                  Average remaining battery across all sensor nodes at run end.
+                  Share of audio events that successfully completed all five
+                  pipeline stages.
                 </span>
               </span>
             </div>
             <div className="m-value">
-              {metrics.battery_health != null
-                ? `${metrics.battery_health}%`
+              {totalEvents > 0
+                ? `${Math.round(((totalEvents - totalFailed) / totalEvents) * 100)}%`
                 : "—"}
             </div>
             <div className="m-trend" style={{ color: "var(--text-muted)" }}>
-              Avg across nodes
+              {totalEvents - totalFailed} of {totalEvents} events
             </div>
           </div>
         </div>
 
         <div className="charts-grid">
-          <div
-            className="chart-box chart-clickable"
-            onClick={() =>
-              setChartModal({ open: true, type: "detections", expanded: false })
-            }
-          >
+
+          
+          <div className="chart-box chart-clickable">
             <div className="chart-hdr">
               <div className="chart-title">
                 Detections by Type{" "}
                 <span className="help-icon">
                   ?
                   <span className="help-tip">
-                    Data-driven category chart. Click to expand full dataset.
+                    Distribution of detected event categories for this run.
                   </span>
                 </span>
               </div>
-              <div className="chart-expand-hint">Expand</div>
             </div>
             <ResponsiveBarChart
               data={detectionsData}
@@ -258,51 +258,80 @@ export default function Overview({ run }) {
               valueFormatter={(value) => `${value}`}
             />
           </div>
-
-          <div
-            className="chart-box chart-clickable"
-            onClick={() =>
-              setChartModal({ open: true, type: "latency", expanded: false })
-            }
-          >
+          <div className="chart-box">
             <div className="chart-hdr">
               <div className="chart-title">
-                Latency by Network Rank{" "}
+                Audio Pipeline Pass / Fail{" "}
                 <span className="help-icon">
                   ?
                   <span className="help-tip">
-                    Rank-specific latency values. Click to inspect all ranks.
+                    Number of audio events that passed or failed at each stage
+                    of the five-stage pipeline.
                   </span>
                 </span>
               </div>
-              <div className="chart-expand-hint">Expand</div>
             </div>
             <ResponsiveBarChart
-              data={latencyByRankData}
+              data={stageChartData.map((s) => ({ label: s.label, value: s.value }))}
               compact
-              emptyText="No latency data"
-              valueFormatter={(value) => `${value}ms`}
+              emptyText="No pipeline data"
+              valueFormatter={(value) => `${value}`}
             />
           </div>
+
+        </div>
+
+        <div className="pipeline-grid">
+          {PIPELINE_STAGES.map((stage) => {
+            const stats = pipelineStats[stage.id] || {};
+            const passed = Number(stats.passed) || 0;
+            const failed = Number(stats.failed) || 0;
+            const total = passed + failed;
+            const passRate = total > 0 ? Math.round((passed / total) * 100) : null;
+            return (
+              <div
+                key={stage.id}
+                className="pipeline-card chart-clickable"
+                onClick={() => setStageModal({ open: true, stageId: stage.id })}
+              >
+                <div className="pipeline-card-hdr">
+                  <div className="chart-title">{stage.label}</div>
+                  <div
+                    className={`chip ${passRate == null ? "" : passRate >= 80 ? "chip-pass" : passRate >= 50 ? "chip-warn" : "chip-fail"}`}
+                  >
+                    {passRate != null ? `${passRate}% pass` : "No data"}
+                  </div>
+                </div>
+                <div className="pipeline-stats">
+                  <div className="pipeline-stat">
+                    <div className="m-label">Passed</div>
+                    <div className="m-value">{passed}</div>
+                  </div>
+                  <div className="pipeline-stat">
+                    <div className="m-label">Failed</div>
+                    <div className="m-value">{failed}</div>
+                  </div>
+                  <div className="pipeline-stat">
+                    <div className="m-label">Total</div>
+                    <div className="m-value">{total}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <Modal
-        open={chartModal.open}
-        title={chartConfig.title}
-        subtitle={chartConfig.subtitle}
-        expanded={chartModal.expanded}
-        onToggleExpand={() =>
-          setChartModal((prev) => ({ ...prev, expanded: !prev.expanded }))
-        }
-        onClose={() =>
-          setChartModal({ open: false, type: null, expanded: false })
-        }
+        open={stageModal.open}
+        title={selectedStage ? `${selectedStage.label} — Details` : "Stage Details"}
+        subtitle="Per-event outcomes for the selected pipeline stage"
+        onClose={() => setStageModal({ open: false, stageId: null })}
       >
         <ResponsiveBarChart
-          data={chartConfig.data}
-          emptyText="No data available"
-          valueFormatter={chartConfig.formatter}
+          data={selectedStageData}
+          emptyText="No detail data"
+          valueFormatter={(value) => `${value}`}
         />
       </Modal>
     </div>
