@@ -9,7 +9,7 @@ from app.database import SessionLocal, init_db
 from app.db_models import (
     RunRow, RunMetricsRow, DetectionByTypeRow, LatencyByRankRow,
     AccuracyConfidenceCurveRow, NetworkNodeRow, NodeEventRow,
-    NodeChildRow, NetworkEdgeRow, RerouteEventRow,
+    NodeChildRow, NetworkEdgeRow, RerouteEventRow, AIEventRow,
 )
 
 def _metrics_for_status(status: str) -> dict:
@@ -186,17 +186,35 @@ RAW_REROUTES = [
 ]
 
 RAW_RUNS = [
-    dict(id=1,  name="Forest_Night_01",    date="2025-02-17", scenario="Tropical Night",  shamani="Radxa Zero", shamanii="Radxa Zero", duration="24h", status="pass"),
-    dict(id=2,  name="Forest_Dawn_03",     date="2025-02-16", scenario="Dawn Chorus",     shamani="ESP32",      shamanii="Radxa Zero", duration="12h", status="warning"),
-    dict(id=3,  name="Urban_Park_07",      date="2025-02-15", scenario="Urban Noise",     shamani="Radxa Zero", shamanii="Radxa Zero", duration="8h",  status="pass"),
-    dict(id=4,  name="Wetland_Rain_02",    date="2025-02-14", scenario="Wetland Rain",    shamani="ESP32",      shamanii="Radxa Zero", duration="24h", status="fail"),
-    dict(id=5,  name="Mountain_Clear_05",  date="2025-02-13", scenario="Mountain Clear",  shamani="Radxa Zero", shamanii="Radxa Zero", duration="16h", status="pass"),
-    dict(id=6,  name="Forest_Storm_04",    date="2025-02-12", scenario="Storm Event",     shamani="ESP32",      shamanii="Radxa Zero", duration="6h",  status="warning"),
-    dict(id=7,  name="Coastal_Night_01",   date="2025-02-11", scenario="Coastal Night",   shamani="Radxa Zero", shamanii="Radxa Zero", duration="24h", status="pass"),
-    dict(id=8,  name="Desert_Day_02",      date="2025-02-10", scenario="Desert Sparse",   shamani="ESP32",      shamanii="Radxa Zero", duration="12h", status="pass"),
-    dict(id=9,  name="Jungle_Dense_06",    date="2025-02-09", scenario="Dense Canopy",    shamani="Radxa Zero", shamanii="Radxa Zero", duration="24h", status="warning"),
-    dict(id=10, name="River_Valley_03",    date="2025-02-08", scenario="River Valley",    shamani="ESP32",      shamanii="Radxa Zero", duration="8h",  status="pass"),
+    dict(id=1, name="Template_Run_Demo", date="2025-02-17", scenario="Tropical Night", shamani="Radxa Zero", shamanii="Radxa Zero", duration="24h", status="pass"),
 ]
+
+# Synthetic detection timeline for the template run — spread across 24 h so the
+# battery simulation has realistic events to consume. "Bird" events are the
+# unconfirmed case (stage 2 skipped, no transmit); the rest are confirmed.
+TEMPLATE_AI_EVENTS = [
+    dict(timestamp_ms=543_000,    event_type="Human Presence", confidence=0.91, latency_ms=52),
+    dict(timestamp_ms=2_103_000,  event_type="Bird",           confidence=0.44, latency_ms=31),
+    dict(timestamp_ms=7_200_000,  event_type="Bird",           confidence=0.38, latency_ms=29),
+    dict(timestamp_ms=14_400_000, event_type="Human Presence", confidence=0.87, latency_ms=48),
+    dict(timestamp_ms=25_200_000, event_type="Bird",           confidence=0.51, latency_ms=33),
+    dict(timestamp_ms=36_000_000, event_type="Human Presence", confidence=0.79, latency_ms=61),
+    dict(timestamp_ms=54_000_000, event_type="Bird",           confidence=0.42, latency_ms=30),
+    dict(timestamp_ms=72_000_000, event_type="Human Presence", confidence=0.93, latency_ms=45),
+]
+
+# Power configuration the template run is seeded with — mirrors the Configure
+# Run defaults so the seeded curve matches what a fresh run would produce.
+TEMPLATE_SHAMAN_CONFIG = {
+    "batteryLife": 30,
+    "components": {
+        "micListen": {"current": 0.6, "voltage": 3.3, "power": None},
+        "sleep":     {"current": 0.8, "voltage": 3.3, "power": None},
+        "working":   {"current": 160, "voltage": 3.3, "power": None},
+        "transmit":  {"current": 220, "voltage": 3.3, "power": None},
+    },
+    "timing": {"t_proc": 0.030, "t_tx": 0.005},
+}
 
 def seed():
     init_db()
@@ -260,8 +278,25 @@ def seed():
             for rr in RAW_REROUTES:
                 db.add(RerouteEventRow(run_id=run.id, **rr))
 
+            # AI detection timeline for the Shaman sensor node — this is what
+            # the battery simulation consumes.
+            for ev in TEMPLATE_AI_EVENTS:
+                db.add(AIEventRow(run_id=run.id, node_id="S1", energy_mj=0.0, **ev))
+
+        db.flush()
+
+        # Battery simulation for each seeded run, so Battery Statistics shows
+        # real simulator output instead of zeros. Uses the same adapter the
+        # live run pipeline uses, so seeded and real runs are consistent.
+        for r in RAW_RUNS:
+            try:
+                from app.services.battery_sim import run_battery_simulation_for_run
+                run_battery_simulation_for_run(db, r["id"], TEMPLATE_SHAMAN_CONFIG)
+            except Exception as exc:
+                print(f"Battery simulation seeding skipped for run {r['id']}: {exc}")
+
         db.commit()
-        print(f"Seeded {len(RAW_RUNS)} runs with full topology and metrics.")
+        print(f"Seeded {len(RAW_RUNS)} run(s) with full topology, metrics, and battery simulation.")
     except Exception as exc:
         db.rollback()
         raise exc

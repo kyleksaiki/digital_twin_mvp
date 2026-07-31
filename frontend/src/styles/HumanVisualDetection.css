@@ -1,0 +1,128 @@
+/* Human Visual Detection page */
+
+.hvd-dropzone {
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: var(--bg-tertiary);
+  padding: 22px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+  margin-bottom: 16px;
+}
+
+.hvd-dropzone:hover,
+.hvd-dropzone.drag-active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.hvd-dropzone-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.hvd-error {
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 4px;
+  color: var(--red, #ef4444);
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.hvd-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.hvd-count {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.hvd-slider-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hvd-slider-group input[type="range"] {
+  width: 160px;
+}
+
+.hvd-slider-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.hvd-meta {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+/* inline-block wrapper + block img: the wrapper shrink-wraps the rendered
+   image exactly, so percentage-positioned boxes track any display size. */
+.hvd-image-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+}
+
+.hvd-image-wrap img {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+}
+
+.hvd-box {
+  position: absolute;
+  border: 2px solid #ef4444;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.hvd-box-label {
+  position: absolute;
+  top: -18px;
+  left: -2px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+/* Keep the label readable when the box touches the top edge. */
+.hvd-box[style*="top: 0%"] .hvd-box-label {
+  top: 2px;
+}
+
+.hvd-overlay-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 12px;
+}

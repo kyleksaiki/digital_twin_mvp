@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { createRun, fetchRunStatus, uploadAudio } from "../api";
+import { createRun, fetchRunStatus, uploadAudio, fetchBatteryStats } from "../api";
 import ModalStepper from "./common/ModalStepper";
 import useStepNavigator from "../hooks/useStepNavigator";
 
@@ -96,14 +96,16 @@ const TARGET_SPECIES_PRESETS = [
   "Myiothlypis fulvicauda (Buff-rumped Warbler)",
 ];
 
+// `simField` marks the components that feed the single-node battery simulator.
+// The others are recorded with the run but are not yet simulated.
 const COMPONENT_FIELDS = [
-  { key: "sleep", label: "Processor Sleep" },
-  { key: "working", label: "Processor Working" },
-  { key: "transmit", label: "Radio Transmit" },
+  { key: "sleep", label: "Processor Sleep", simField: "P_proc_lp" },
+  { key: "working", label: "Processor Working", simField: "P_proc_hp" },
+  { key: "transmit", label: "Radio Transmit", simField: "P_tx" },
   { key: "receive", label: "Radio Receive" },
   { key: "cameraImage", label: "Camera Image" },
   { key: "cameraSleep", label: "Camera Sleep" },
-  { key: "micListen", label: "Mic Listen" },
+  { key: "micListen", label: "Mic Listen", simField: "P_mic" },
   { key: "micSleep", label: "Mic Sleep" },
 ];
 
@@ -113,6 +115,33 @@ function Cvp(current, voltage, power) {
     voltage: voltage ?? null,
     power: power ?? null,
   };
+}
+
+// Mirrors the backend power resolution rule (battery_sim/adapter.py):
+// Power (W) wins when > 0, else W = Voltage × Current(mA) / 1000, else null
+// (the backend then falls back to the simulator default for that component).
+function resolveComponentWatts(cvp) {
+  if (!cvp) return null;
+  const power = Number(cvp.power);
+  if (cvp.power != null && Number.isFinite(power) && power > 0) return power;
+  const current = Number(cvp.current);
+  const voltage = Number(cvp.voltage);
+  if (
+    cvp.current != null &&
+    cvp.voltage != null &&
+    Number.isFinite(current) &&
+    Number.isFinite(voltage)
+  ) {
+    const watts = (voltage * current) / 1000;
+    return watts > 0 ? watts : null;
+  }
+  return null;
+}
+
+function formatWatts(watts) {
+  if (watts == null) return "sim default";
+  if (watts >= 0.01) return `= ${watts.toFixed(3)} W`;
+  return `= ${watts.toFixed(5)} W`;
 }
 
 function buildDefaultComponents() {
@@ -139,6 +168,8 @@ export default function CreateRun({ onRunCreated }) {
   const [scenario, setScenario] = useState("MVP Simulation");
   const [shamanProcessor, setShamanProcessor] = useState("ESP32");
   const [batteryCapacity, setBatteryCapacity] = useState(30);
+  const [procTime, setProcTime] = useState(0.03);
+  const [txTime, setTxTime] = useState(0.005);
   const [components, setComponents] = useState(buildDefaultComponents);
   const [stage1Config, setStage1Config] = useState({ ...STAGE1_DEFAULTS });
   const [audioFile, setAudioFile] = useState(null);
@@ -232,6 +263,17 @@ export default function CreateRun({ onRunCreated }) {
         return "Sample Rate must be between 8000 and 192000 Hz.";
       }
     }
+    if (stepIndex === 3) {
+      if (!(Number(batteryCapacity) > 0)) {
+        return "Battery Capacity must be greater than 0 Wh.";
+      }
+      if (!(Number(procTime) >= 0)) {
+        return "HP Processing Time per Detection must be 0 or greater.";
+      }
+      if (!(Number(txTime) >= 0)) {
+        return "Transmit Time per Detection must be 0 or greater.";
+      }
+    }
     return "";
   }
 
@@ -288,6 +330,10 @@ export default function CreateRun({ onRunCreated }) {
         shamanConfig: {
           batteryLife: batteryCapacity,
           components,
+          timing: {
+            t_proc: Number(procTime),
+            t_tx: Number(txTime),
+          },
         },
         stage1Config,
       };
@@ -298,9 +344,25 @@ export default function CreateRun({ onRunCreated }) {
         await waitForRunCompletion(result.id);
       }
 
+      let batteryLine = "";
+      try {
+        const battery = await fetchBatteryStats(result.id);
+        if (battery?.available && battery.summary) {
+          const finalPct = Number(battery.summary.final_battery_percent);
+          const hours = Number(battery.duration_hours);
+          const source =
+            battery.duration_source === "audio"
+              ? "of audio"
+              : "(estimated from duration setting)";
+          batteryLine = `\nFinal battery: ${finalPct.toFixed(1)}% after ${hours.toFixed(1)} h ${source}`;
+        }
+      } catch {
+        // Battery summary is a nice-to-have; never fail the confirmation over it.
+      }
+
       setWorkflow("confirm");
       setConfirmMessage(
-        `Simulation created successfully!\n\nRun ID: ${result.id}\nRun Name: ${result.name}`,
+        `Simulation created successfully!\n\nRun ID: ${result.id}\nRun Name: ${result.name}${batteryLine}`,
       );
     } catch (err) {
       setWorkflow("confirm");
@@ -324,6 +386,8 @@ export default function CreateRun({ onRunCreated }) {
     setScenario("MVP Simulation");
     setShamanProcessor("ESP32");
     setBatteryCapacity(30);
+    setProcTime(0.03);
+    setTxTime(0.005);
     setComponents(buildDefaultComponents());
     setStage1Config({ ...STAGE1_DEFAULTS });
     setAudioFile(null);
@@ -532,6 +596,30 @@ export default function CreateRun({ onRunCreated }) {
         />
       </div>
 
+      <div className="scp-input-group">
+        <label className="scp-label">HP Processing Time per Detection (s)</label>
+        <input
+          type="number"
+          className="scp-input"
+          value={procTime}
+          onChange={(e) => setProcTime(e.target.value === "" ? "" : Number(e.target.value))}
+          step="0.001"
+          min="0"
+        />
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Transmit Time per Detection (s)</label>
+        <input
+          type="number"
+          className="scp-input"
+          value={txTime}
+          onChange={(e) => setTxTime(e.target.value === "" ? "" : Number(e.target.value))}
+          step="0.001"
+          min="0"
+        />
+      </div>
+
       <div
         style={{
           fontSize: 10,
@@ -567,17 +655,31 @@ export default function CreateRun({ onRunCreated }) {
               <th style={{ padding: "8px 4px", textAlign: "right" }}>
                 Power (W)
               </th>
+              <th style={{ padding: "8px 4px", textAlign: "right" }}>
+                Resolved
+              </th>
             </tr>
           </thead>
           <tbody>
-            {COMPONENT_FIELDS.map(({ key, label }) => {
+            {COMPONENT_FIELDS.map(({ key, label, simField }) => {
               const cvp = components[key] || Cvp();
+              const resolved = resolveComponentWatts(cvp);
               return (
                 <tr
                   key={key}
                   style={{ borderBottom: "1px solid var(--border-muted)" }}
                 >
-                  <td style={{ padding: "8px 4px" }}>{label}</td>
+                  <td style={{ padding: "8px 4px" }}>
+                    {label}
+                    {simField ? (
+                      <span
+                        title="Feeds the battery model"
+                        style={{ color: "var(--blue, #3b82f6)", marginLeft: 4 }}
+                      >
+                        ⚡
+                      </span>
+                    ) : null}
+                  </td>
                   <td style={{ padding: "4px" }}>
                     <input
                       type="number"
@@ -617,11 +719,41 @@ export default function CreateRun({ onRunCreated }) {
                       style={{ width: "100%" }}
                     />
                   </td>
+                  <td
+                    style={{
+                      padding: "4px",
+                      textAlign: "right",
+                      whiteSpace: "nowrap",
+                      color:
+                        resolved != null
+                          ? "var(--text)"
+                          : "var(--text-muted)",
+                      fontSize: 10,
+                    }}
+                  >
+                    {formatWatts(resolved)}
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+      </div>
+
+      <div
+        style={{
+          fontSize: 10,
+          color: "var(--text-muted)",
+          marginTop: 12,
+          lineHeight: 1.4,
+        }}
+      >
+        <strong>⚡ Battery model inputs:</strong> Mic Listen, Processor Sleep
+        (idle), Processor Working (per detection), and Radio Transmit (per
+        detection) feed the single-node battery simulation. Radio Receive,
+        Camera Image, Camera Sleep, and Mic Sleep are recorded with the run
+        but are not yet simulated. "Resolved" shows the wattage the simulator
+        will actually receive — check it to catch mA/A unit mistakes.
       </div>
     </div>,
 
@@ -728,6 +860,13 @@ export default function CreateRun({ onRunCreated }) {
         <label className="scp-label">Battery Capacity</label>
         <div className="scp-input" style={{ background: "var(--bg-muted)" }}>
           {batteryCapacity} Wh
+        </div>
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Detection Timing (t_proc / t_tx)</label>
+        <div className="scp-input" style={{ background: "var(--bg-muted)" }}>
+          {Number(procTime)} s / {Number(txTime)} s
         </div>
       </div>
 

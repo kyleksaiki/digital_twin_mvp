@@ -6,6 +6,7 @@ import ModelPerformanceDashboard from './components/ModelPerformanceDashboard'
 import BatteryStatistics from './components/BatteryStatistics'
 import AISummary from './components/AISummary'
 import CreateRun from './components/CreateRun'
+import HumanVisualDetection from './components/HumanVisualDetection'
 import DetailPanel from './components/DetailPanel'
 
 // Styles
@@ -19,10 +20,11 @@ import './styles/NetMap.css'
 import './styles/DetailPanel.css'
 import './styles/AISummary.css'
 import './styles/CreateRun.css'
+import './styles/HumanVisualDetection.css'
 import './styles/visuals.css'
 
 export default function App(){
-  const titles = { runsel:'Run Selector', overview:'Model Performance Dashboard', netmap:'Battery Statistics', aisummary:'AI Assistant', create:'Create New Run' }
+  const titles = { runsel:'Run Selector', overview:'Model Performance Dashboard', netmap:'Battery Statistics', aisummary:'AI Assistant', create:'Create New Run', vision:'Human Visual Detection' }
   const [page, setPage] = useState('runsel')
   const [loadedRun, setLoadedRun] = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
@@ -81,6 +83,10 @@ export default function App(){
 
       <div className={`page ${page==='aisummary'?'active':''}`} id="pageAISummary">
         <AISummary loadedRun={loadedRun} />
+      </div>
+
+      <div className={`page ${page==='vision'?'active':''}`} id="pageVision">
+        <HumanVisualDetection />
       </div>
 
       <div className={`page ${page==='create'?'active':''}`} id="pageCreateRun">

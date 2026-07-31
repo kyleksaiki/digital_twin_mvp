@@ -22,6 +22,12 @@ from app.db_models import (
 
 logger = logging.getLogger(__name__)
 
+try:
+    from app.services.battery_sim import run_battery_simulation_for_run
+except Exception as exc:
+    logger.exception("Failed to import battery simulation service: %s", exc)
+    run_battery_simulation_for_run = None
+
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -123,7 +129,23 @@ def _finalize_audio_uploads(run_id: int, node_audio_map: Dict[str, str]) -> Dict
     return finalized
 
 
-def _process_audio_background(run_id: int, node_audio_map: Dict[str, str], config: Dict[str, Any]) -> None:
+def _run_battery_sim_safe(db: Session, run_id: int, shaman_config: Optional[Dict[str, Any]]) -> None:
+    """Run the battery simulation for a run; a failure must never fail the run."""
+    if run_battery_simulation_for_run is None:
+        logger.warning("Battery simulation service unavailable; skipping for run %s", run_id)
+        return
+    try:
+        run_battery_simulation_for_run(db, run_id, shaman_config or {})
+        db.commit()
+    except Exception:
+        logger.exception("Battery simulation failed for run %s; continuing without it", run_id)
+        try:
+            db.rollback()
+        except Exception:
+            logger.exception("Failed to roll back after battery simulation error for run %s", run_id)
+
+
+def _process_audio_background(run_id: int, node_audio_map: Dict[str, str], config: Dict[str, Any], shaman_config: Optional[Dict[str, Any]] = None) -> None:
     """Background task: opens its own SessionLocal, runs the audio workflow, updates run status."""
     db = SessionLocal()
     try:
@@ -148,6 +170,11 @@ def _process_audio_background(run_id: int, node_audio_map: Dict[str, str], confi
             block_seconds=float(config.get("block_seconds") or 60.0),
             clip_s=float(config.get("clip_s") or 3.0),
         )
+        # Persist the detection timeline before the battery sim consumes it, so
+        # a sim failure (rolled back below) can never discard audio results.
+        db.commit()
+
+        _run_battery_sim_safe(db, run_id, shaman_config)
 
         run = db.query(RunRow).filter(RunRow.id == run_id).first()
         if run:
@@ -495,7 +522,12 @@ def create_run(req: CreateRunRequest, background_tasks: BackgroundTasks, db: Ses
             run.id,
             finalized_audio_map,
             config,
+            req.shamanConfig or {},
         )
+    else:
+        # No audio: run the battery sim now with an empty event list and the
+        # dropdown duration — still a meaningful idle-drain baseline.
+        _run_battery_sim_safe(db, run.id, req.shamanConfig or {})
     
     return CreateRunResponse(
         id=run.id,

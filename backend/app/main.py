@@ -11,6 +11,8 @@ from app.routes import network
 from app.routes import ai
 from app.routes import export
 from app.routes import audio
+from app.routes import battery
+from app.routes import vision
 from app.database import init_db
 from app.seed import seed
 
@@ -34,6 +36,8 @@ app.include_router(network.router)
 app.include_router(ai.router)
 app.include_router(export.router)
 app.include_router(audio.router)
+app.include_router(battery.router)
+app.include_router(vision.router)
 
 
 @app.on_event("startup")

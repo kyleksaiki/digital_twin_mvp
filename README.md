@@ -36,3 +36,11 @@ python -m venv .venv
 .venv\Scripts\activate
 uvicorn app.main:app --port 8000
 ```
+
+# Human Visual Detection (YOLO) 👁
+
+The Human Visual Detection page uses Ultralytics YOLO (`yolo11n.pt`, nano COCO
+model) to find people in uploaded images. The first detection request downloads
+the model weights (~5 MB) and therefore requires network access on the backend.
+The weights file is gitignored (`*.pt`). If `ultralytics` is not installed, the
+rest of the app runs normally and only this page reports the missing dependency.

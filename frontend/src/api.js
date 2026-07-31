@@ -23,6 +23,29 @@ export function fetchNetmap(runId){
 }
 export function fetchDashboard(runId){ return getJson(`/runs/${runId}/dashboard`) }
 export function fetchRunStatus(runId){ return getJson(`/runs/${runId}/status`) }
+export function fetchBatteryStats(runId){ return getJson(`/runs/${runId}/battery`) }
+export async function detectHumans(file){
+  if(!file){
+    throw new Error('Missing image file')
+  }
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await fetch(`${API_BASE}/vision/detect-humans`, {
+    method: 'POST',
+    body: formData,
+  })
+  if(!res.ok){
+    let message = 'Detection failed'
+    try {
+      const body = await res.json()
+      message = body?.detail || message
+    } catch {
+      // keep default message
+    }
+    throw new Error(message)
+  }
+  return res.json()
+}
 export function fetchAiSummary(runId){ 
   if(runId) return getJson(`/ai/summary?run_id=${runId}`)
   return getJson('/ai/summary')

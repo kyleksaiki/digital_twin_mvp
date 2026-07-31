@@ -5,6 +5,7 @@ Drop-in alongside existing models.py (Pydantic) without touching it.
 from sqlalchemy import (
     Column, Integer, String, Float, Date, Enum, BigInteger,
     ForeignKey, UniqueConstraint, Index, TIMESTAMP, func, JSON,
+    Boolean, Text,
 )
 from sqlalchemy.orm import relationship, declarative_base
 
@@ -37,6 +38,7 @@ class RunRow(Base):
     edges              = relationship("NetworkEdgeRow",           back_populates="run", cascade="all, delete-orphan")
     reroutes           = relationship("RerouteEventRow",          back_populates="run", cascade="all, delete-orphan")
     ai_events          = relationship("AIEventRow",               back_populates="run", cascade="all, delete-orphan")
+    battery_sim        = relationship("BatterySimResultRow",      back_populates="run", uselist=False, cascade="all, delete-orphan")
 
 
 class RunMetricsRow(Base):
@@ -197,3 +199,35 @@ class AIEventRow(Base):
     energy_mj    = Column(Float, nullable=False)
 
     run = relationship("RunRow", back_populates="ai_events")
+
+
+class BatterySimResultRow(Base):
+    """Full single-node battery simulator output for a run — one row per run.
+
+    The existing NetworkNodeRow battery/power columns are Integer and truncate
+    the simulator's sub-watt values to 0, so the full-precision output lives
+    here. NetworkNodeRow.battery/drain still receive rounded mirrors for
+    legacy consumers, but this table is the source of truth for the Battery
+    Statistics page.
+    """
+    __tablename__ = "battery_sim_results"
+
+    id                          = Column(Integer, primary_key=True, autoincrement=True)
+    run_id                      = Column(Integer, ForeignKey("runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    node_id                     = Column(String(20), nullable=False)
+    battery_wh                  = Column(Float, nullable=False)
+    energy_consumed_wh          = Column(Float, nullable=False)
+    energy_remaining_wh         = Column(Float, nullable=False)
+    final_battery_percent       = Column(Float, nullable=False)
+    average_power_w             = Column(Float, nullable=False)
+    avg_drain_percent_per_hour  = Column(Float, nullable=False)
+    projected_total_life_hours  = Column(Float, nullable=True)
+    duration_hours              = Column(Float, nullable=False)
+    duration_source             = Column(String(20), nullable=False, default="dropdown")
+    total_detections            = Column(Integer, nullable=False, default=0)
+    alive                       = Column(Boolean, nullable=False, default=True)
+    series_json                 = Column(Text, nullable=False)      # battery_over_time array
+    breakdown_json              = Column(Text, nullable=False)      # per-component Wh breakdown
+    created_at                  = Column(TIMESTAMP, server_default=func.now())
+
+    run = relationship("RunRow", back_populates="battery_sim")

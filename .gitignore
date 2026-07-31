@@ -10,3 +10,5 @@ __pycache__/
 audio_workflow_outputs/
 backend/audio_workflow_outputs/
 uploads/
+# YOLO weights (downloaded on first use of Human Visual Detection)
+*.pt

@@ -24,7 +24,11 @@ export default function Sidebar({onNavigate, active, reroutes = [], isRunLoaded}
       <div className={`sb-item ${active==='overview'?'active':''} ${isRunLoaded?'':'disabled'}`} id="navOverview" onClick={()=>isRunLoaded?onNavigate('overview'):''}><span className="sb-icon">◫</span> Model Performance</div>
       <div className={`sb-item ${active==='netmap'?'active':''} ${isRunLoaded?'':'disabled'}`} id="navNetMap" onClick={()=>isRunLoaded?onNavigate('netmap'):''}><span className="sb-icon">⚡</span> Battery Statistics</div>
       <div className={`sb-item ${active==='aisummary'?'active':''} ${isRunLoaded?'':'disabled'}`} id="navAISummary" onClick={()=>isRunLoaded?onNavigate('aisummary'):''}><span className="sb-icon">◈</span> AI Assistant</div>
+      <div className="sb-divider"></div>
 
+      <div className="sb-label">Other</div>
+      <div className={`sb-item ${active==='vision'?'active':''}`} id="navVision" onClick={()=>onNavigate('vision')}><span className="sb-icon">◉</span> Human Visual Detection</div>
+      
       <div className={`sb-ctx ${active==='netmap'?'visible':''}`} id="ctxNetMap">
         <div className="sb-divider"></div>
         <div className="sb-label">Battery Filters</div>
