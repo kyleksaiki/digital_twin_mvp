@@ -39,6 +39,9 @@ class RunRow(Base):
     reroutes           = relationship("RerouteEventRow",          back_populates="run", cascade="all, delete-orphan")
     ai_events          = relationship("AIEventRow",               back_populates="run", cascade="all, delete-orphan")
     battery_sim        = relationship("BatterySimResultRow",      back_populates="run", uselist=False, cascade="all, delete-orphan")
+    pipeline_stages    = relationship("PipelineStageStatRow",     back_populates="run", cascade="all, delete-orphan")
+    processing_stats   = relationship("AudioProcessingStatRow",   back_populates="run", uselist=False, cascade="all, delete-orphan")
+    ground_truth_eval  = relationship("GroundTruthEvalRow",       back_populates="run", uselist=False, cascade="all, delete-orphan")
 
 
 class RunMetricsRow(Base):
@@ -231,3 +234,86 @@ class BatterySimResultRow(Base):
     created_at                  = Column(TIMESTAMP, server_default=func.now())
 
     run = relationship("RunRow", back_populates="battery_sim")
+
+
+class PipelineStageStatRow(Base):
+    """Real per-stage pass/fail/timing for the 5-stage audio pipeline.
+
+    One row per run per UI stage (stage1..stage5), derived from actual
+    workflow timelines by services/aed/stage_stats.py. Never seeded with
+    mock values — absent rows simply mean no audio was processed.
+    """
+    __tablename__ = "pipeline_stage_stats"
+
+    id           = Column(Integer, primary_key=True, autoincrement=True)
+    run_id       = Column(Integer, ForeignKey("runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    stage_id     = Column(String(20), nullable=False)     # stage1..stage5
+    stage_label  = Column(String(80), nullable=False)
+    entered      = Column(Integer, nullable=False, default=0)
+    passed       = Column(Integer, nullable=False, default=0)
+    failed       = Column(Integer, nullable=False, default=0)
+    mean_ms      = Column(Float, nullable=False, default=0.0)
+    total_ms     = Column(Float, nullable=False, default=0.0)
+    details_json = Column(Text, nullable=False, default="[]")
+    created_at   = Column(TIMESTAMP, server_default=func.now())
+
+    run = relationship("RunRow", back_populates="pipeline_stages")
+
+
+class AudioProcessingStatRow(Base):
+    """Per-run AED processing measurements and model provenance.
+
+    val_* columns are the checkpoint's held-out validation metrics — model
+    card material, NOT this run's accuracy. They are stored per run so a
+    reviewer can always tell which model produced a given run's numbers.
+    """
+    __tablename__ = "audio_processing_stats"
+
+    id                        = Column(Integer, primary_key=True, autoincrement=True)
+    run_id                    = Column(Integer, ForeignKey("runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    model_status              = Column(String(120), nullable=False, default="unknown")
+    checkpoint_file           = Column(String(120), nullable=True)
+    model_version             = Column(String(255), nullable=True)
+    threshold                 = Column(Float, nullable=False, default=0.0)
+    device                    = Column(String(20), nullable=True)
+    clips_scored              = Column(Integer, nullable=False, default=0)
+    clips_skipped             = Column(Integer, nullable=False, default=0)
+    mean_confidence           = Column(Float, nullable=False, default=0.0)
+    confidence_histogram_json = Column(Text, nullable=False, default="[]")
+    audio_seconds             = Column(Float, nullable=False, default=0.0)
+    wall_ms                   = Column(Float, nullable=False, default=0.0)
+    throughput_cps            = Column(Float, nullable=False, default=0.0)
+    val_acc                   = Column(Float, nullable=True)
+    val_precision             = Column(Float, nullable=True)
+    val_recall                = Column(Float, nullable=True)
+    val_f1                    = Column(Float, nullable=True)
+    created_at                = Column(TIMESTAMP, server_default=func.now())
+
+    run = relationship("RunRow", back_populates="processing_stats")
+
+
+class GroundTruthEvalRow(Base):
+    """Measured detection performance for this run against a supplied ground-truth log.
+
+    Unlike the val_* columns on AudioProcessingStatRow (which describe the
+    model's held-out validation set), every number here is measured on the
+    audio the user actually uploaded.
+    """
+    __tablename__ = "ground_truth_eval"
+
+    id                        = Column(Integer, primary_key=True, autoincrement=True)
+    run_id                    = Column(Integer, ForeignKey("runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    total_events              = Column(Integer, nullable=False, default=0)
+    total_detections          = Column(Integer, nullable=False, default=0)
+    matched_events            = Column(Integer, nullable=False, default=0)
+    missed_events             = Column(Integer, nullable=False, default=0)
+    true_positive_detections  = Column(Integer, nullable=False, default=0)
+    false_positive_detections = Column(Integer, nullable=False, default=0)
+    recall                    = Column(Float, nullable=False, default=0.0)
+    precision                 = Column(Float, nullable=False, default=0.0)
+    f1                        = Column(Float, nullable=False, default=0.0)
+    detections_per_event      = Column(Float, nullable=False, default=0.0)
+    by_type_json              = Column(Text, nullable=False, default="[]")
+    created_at                = Column(TIMESTAMP, server_default=func.now())
+
+    run = relationship("RunRow", back_populates="ground_truth_eval")

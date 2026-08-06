@@ -99,7 +99,7 @@ const TARGET_SPECIES_PRESETS = [
 // `simField` marks the components that feed the single-node battery simulator.
 // The others are recorded with the run but are not yet simulated.
 const COMPONENT_FIELDS = [
-  { key: "sleep", label: "Processor Sleep", simField: "P_proc_lp" },
+  { key: "sleep", label: "Processor Idle (Stage 1 DSP)", simField: "P_proc_lp" },
   { key: "working", label: "Processor Working", simField: "P_proc_hp" },
   { key: "transmit", label: "Radio Transmit", simField: "P_tx" },
   { key: "receive", label: "Radio Receive" },
@@ -116,6 +116,52 @@ function Cvp(current, voltage, power) {
     power: power ?? null,
   };
 }
+
+// One-click demo configuration. Component currents/voltages are estimated from
+// the Shaman P0 parts list (Teensy 4.1, SPH0645LM4H mic, Wio-SX1262 LoRa,
+// Pi Zero 2W + OV5647 camera); battery is the 17600 mAh @ 5V pack (~88 Wh).
+// Datasheet estimates, not bench measurements.
+const MVP_DEMO_PRESET = {
+  runName: "MVP Demo — Shaman Node 001",
+  description:
+    "Demo run: generated rainforest audio through the 5-stage AED pipeline. "
+    + "Power estimated from the Shaman P0 parts list — ESP32 running the "
+    + "always-on Stage 1 prefilter, Radxa Zero waking ~3 s per gated clip for "
+    + "AED inference, SPH0645 mic, SX1262 LoRa, 17600 mAh / 88 Wh pack.",
+  environment: "Tropical Forest",
+  targetSpecies: [
+    "Tinamus major (Great Tinamou)",
+    "Ara macao (Scarlet Macaw)",
+    "Ramphastos ambiguus (Yellow-throated Toucan)",
+  ],
+  sensitivity: 0.5,
+  confidenceThreshold: 0.75,
+  sampleRate: 48000,
+  duration: "1h",
+  scenario: "MVP Simulation",
+  shamanProcessor: "ESP32",
+  batteryCapacity: 88,
+  procTime: 3.0,
+  txTime: 0.005,
+  components: {
+    // The always-on state is NOT sleep: the Stage 1 prefilter runs continuously
+    // over every 3 s window (RMS, FFT, spectral centroid/bandwidth). Priced at
+    // ~35 mA of sustained ESP32 DSP rather than the 0.8 mA light-sleep figure,
+    // which would understate the dominant term in the power budget.
+    sleep: Cvp(35, 3.3, null),
+    // Shaman II (Radxa Zero, quad Cortex-A53) wakes to score each clip that
+    // clears the gate. Board-level draw under inference load, not just the SoC.
+    working: Cvp(600, 5.0, null),
+    // SX1262 at +22 dBm; receive is ~20x cheaper, which is the LoRa argument.
+    transmit: Cvp(118, 3.3, null),
+    receive: Cvp(5.3, 3.3, null),
+    // Camera is power-gated between captures, so sleep draw is near zero.
+    cameraImage: Cvp(250, 5.0, null),
+    cameraSleep: Cvp(0.5, 5.0, null),
+    micListen: Cvp(1.2, 3.3, null),
+    micSleep: Cvp(0.02, 3.3, null),
+  },
+};
 
 // Mirrors the backend power resolution rule (battery_sim/adapter.py):
 // Power (W) wins when > 0, else W = Voltage × Current(mA) / 1000, else null
@@ -173,9 +219,86 @@ export default function CreateRun({ onRunCreated }) {
   const [components, setComponents] = useState(buildDefaultComponents);
   const [stage1Config, setStage1Config] = useState({ ...STAGE1_DEFAULTS });
   const [audioFile, setAudioFile] = useState(null);
+  const [groundTruthFile, setGroundTruthFile] = useState(null);
+  const [groundTruth, setGroundTruth] = useState(null);
+  const [groundTruthError, setGroundTruthError] = useState("");
   const [workflow, setWorkflow] = useState("configure"); // "configure" | "loading" | "confirm"
   const [confirmMessage, setConfirmMessage] = useState("");
   const [validationError, setValidationError] = useState("");
+  const [demoApplied, setDemoApplied] = useState(false);
+
+  // Fills every field except the audio file, which the user still chooses.
+  function applyDemoPreset() {
+    const p = MVP_DEMO_PRESET;
+    setRunName(p.runName);
+    setDescription(p.description);
+    setEnvironment(p.environment);
+    setTargetSpecies([...p.targetSpecies]);
+    setSensitivity(p.sensitivity);
+    setConfidenceThreshold(p.confidenceThreshold);
+    setSampleRate(p.sampleRate);
+    setDuration(p.duration);
+    setScenario(p.scenario);
+    setShamanProcessor(p.shamanProcessor);
+    setBatteryCapacity(p.batteryCapacity);
+    setProcTime(p.procTime);
+    setTxTime(p.txTime);
+    setComponents(
+      COMPONENT_FIELDS.reduce((acc, field) => {
+        const preset = p.components[field.key];
+        acc[field.key] = preset ? { ...preset } : Cvp();
+        return acc;
+      }, {}),
+    );
+    setStage1Config({ ...STAGE1_DEFAULTS });
+    setValidationError("");
+    setDemoApplied(true);
+  }
+
+  // The generator writes a *_log.json beside each audio file listing every
+  // inserted event. Supplying it turns the dashboard's accuracy panel from
+  // validation-set figures into measured recall/precision for this run.
+  function handleGroundTruthFile(file) {
+    setGroundTruthFile(file);
+    setGroundTruth(null);
+    setGroundTruthError("");
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        const events = Array.isArray(parsed) ? parsed : parsed?.events;
+        if (!Array.isArray(events) || events.length === 0) {
+          setGroundTruthError("No events found in that log file.");
+          return;
+        }
+        setGroundTruth(parsed);
+      } catch {
+        setGroundTruthError("Could not read that file as JSON.");
+      }
+    };
+    reader.onerror = () => setGroundTruthError("Could not read that file.");
+    reader.readAsText(file);
+  }
+
+  function clearDemoPreset() {
+    setRunName("");
+    setDescription("");
+    setEnvironment("Tropical Forest");
+    setTargetSpecies([]);
+    setSensitivity(0.5);
+    setConfidenceThreshold(0.75);
+    setSampleRate(48000);
+    setDuration("24h");
+    setScenario("MVP Simulation");
+    setShamanProcessor("ESP32");
+    setBatteryCapacity(30);
+    setProcTime(0.03);
+    setTxTime(0.005);
+    setComponents(buildDefaultComponents());
+    setStage1Config({ ...STAGE1_DEFAULTS });
+    setDemoApplied(false);
+  }
 
   const stepDefs = [
     { id: "general", title: "General" },
@@ -336,6 +459,7 @@ export default function CreateRun({ onRunCreated }) {
           },
         },
         stage1Config,
+        groundTruth,
       };
 
       const result = await createRun(runData);
@@ -398,6 +522,46 @@ export default function CreateRun({ onRunCreated }) {
     // Step 0: General
     <div key="general" className="modal-section">
       <div className="modal-label">General Configuration</div>
+
+      <div
+        className="scp-input-group"
+        style={{
+          border: "1px solid var(--accent, #f59e0b)",
+          borderRadius: 8,
+          padding: "12px 14px",
+          marginBottom: 16,
+          background: "rgba(245, 158, 11, 0.06)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+            <div style={{ fontWeight: 600, marginBottom: 2 }}>
+              Use MVP demo inputs?
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              {demoApplied
+                ? "Demo values applied. Add your audio file below (and its ground-truth log, if you have one), then continue."
+                : "Fills every field with the Shaman P0 demo configuration (1 h run, 88 Wh pack, ESP32 prefilter + Radxa Zero inference). You only add the audio file."}
+            </div>
+          </div>
+          <button
+            type="button"
+            className={demoApplied ? "btn-secondary" : "btn-primary"}
+            onClick={demoApplied ? clearDemoPreset : applyDemoPreset}
+            style={{ whiteSpace: "nowrap" }}
+          >
+            {demoApplied ? "Clear demo values" : "Use demo inputs"}
+          </button>
+        </div>
+      </div>
 
       <div className="scp-input-group">
         <label className="scp-label">Run Name *</label>
@@ -476,6 +640,31 @@ export default function CreateRun({ onRunCreated }) {
             {audioFile.name}
           </div>
         )}
+      </div>
+
+      <div className="scp-input-group">
+        <label className="scp-label">Ground Truth Log (optional)</label>
+        <input
+          type="file"
+          accept=".json,application/json"
+          onChange={(e) => handleGroundTruthFile(e.target.files?.[0] || null)}
+        />
+        <div style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 6 }}>
+          {groundTruthError ? (
+            <span style={{ color: "var(--danger, #ef4444)" }}>
+              {groundTruthError}
+            </span>
+          ) : groundTruth ? (
+            <span style={{ color: "var(--success, #10b981)" }}>
+              {groundTruthFile?.name} —{" "}
+              {(Array.isArray(groundTruth) ? groundTruth : groundTruth.events)
+                .length}{" "}
+              events. Model Performance will show measured recall and precision.
+            </span>
+          ) : (
+            "The generator's *_log.json. Supplying it measures real accuracy on this audio instead of showing validation-set figures."
+          )}
+        </div>
       </div>
     </div>,
 
@@ -748,7 +937,7 @@ export default function CreateRun({ onRunCreated }) {
           lineHeight: 1.4,
         }}
       >
-        <strong>⚡ Battery model inputs:</strong> Mic Listen, Processor Sleep
+        <strong>⚡ Battery model inputs:</strong> Mic Listen, Processor Idle (Stage 1 DSP)
         (idle), Processor Working (per detection), and Radio Transmit (per
         detection) feed the single-node battery simulation. Radio Receive,
         Camera Image, Camera Sleep, and Mic Sleep are recorded with the run

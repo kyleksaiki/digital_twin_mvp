@@ -6,6 +6,7 @@ from datetime import datetime, date
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from pathlib import Path
+import json
 import logging
 import re
 import shutil
@@ -16,7 +17,8 @@ from app.services.audio_processing import process_run_audio, run_node_audio_work
 from app.db_models import (
     RunRow, RunMetricsRow, NetworkNodeRow, NetworkEdgeRow, 
     RerouteEventRow, DetectionByTypeRow, LatencyByRankRow, 
-    AccuracyConfidenceCurveRow, NodeEventRow, NodeChildRow, AIEventRow, NodeAudioRow
+    AccuracyConfidenceCurveRow, NodeEventRow, NodeChildRow, AIEventRow, NodeAudioRow,
+    PipelineStageStatRow, AudioProcessingStatRow, GroundTruthEvalRow,
 )
 
 
@@ -129,6 +131,65 @@ def _finalize_audio_uploads(run_id: int, node_audio_map: Dict[str, str]) -> Dict
     return finalized
 
 
+def _evaluate_ground_truth_safe(db: Session, run_id: int, ground_truth: Optional[Any]) -> None:
+    """Score this run's detections against a supplied ground-truth log.
+
+    Optional and best-effort: no log, or a malformed one, simply leaves the
+    measured-accuracy panel absent rather than failing the run.
+    """
+    if not ground_truth:
+        return
+    try:
+        from app.services.aed.ground_truth import evaluate_run
+
+        db.flush()
+        detection_times = [
+            float(row.timestamp_ms) / 1000.0
+            for row in db.query(AIEventRow).filter(AIEventRow.run_id == run_id).all()
+        ]
+        result = evaluate_run(ground_truth, detection_times)
+        if not result:
+            return
+
+        db.query(GroundTruthEvalRow).filter(GroundTruthEvalRow.run_id == run_id).delete()
+        db.add(
+            GroundTruthEvalRow(
+                run_id=run_id,
+                total_events=result["total_events"],
+                total_detections=result["total_detections"],
+                matched_events=result["matched_events"],
+                missed_events=result["missed_events"],
+                true_positive_detections=result["true_positive_detections"],
+                false_positive_detections=result["false_positive_detections"],
+                recall=result["recall"],
+                precision=result["precision"],
+                f1=result["f1"],
+                detections_per_event=result["detections_per_event"],
+                by_type_json=json.dumps(result["by_type"]),
+            )
+        )
+
+        # These are measured on this run's own audio, so they are exactly what
+        # the accuracy/FPR metric columns were always meant to hold.
+        metrics = db.query(RunMetricsRow).filter(RunMetricsRow.run_id == run_id).first()
+        if metrics:
+            metrics.accuracy = float(result["recall"])
+            metrics.fpr = float(
+                result["false_positive_detections"] / result["total_detections"]
+            ) if result["total_detections"] else 0.0
+        db.commit()
+        logger.info(
+            "Ground truth for run %s: recall %.3f, precision %.3f over %s events",
+            run_id, result["recall"], result["precision"], result["total_events"],
+        )
+    except Exception:
+        logger.exception("Ground-truth evaluation failed for run %s; continuing", run_id)
+        try:
+            db.rollback()
+        except Exception:
+            logger.exception("Rollback failed after ground-truth error for run %s", run_id)
+
+
 def _run_battery_sim_safe(db: Session, run_id: int, shaman_config: Optional[Dict[str, Any]]) -> None:
     """Run the battery simulation for a run; a failure must never fail the run."""
     if run_battery_simulation_for_run is None:
@@ -145,7 +206,7 @@ def _run_battery_sim_safe(db: Session, run_id: int, shaman_config: Optional[Dict
             logger.exception("Failed to roll back after battery simulation error for run %s", run_id)
 
 
-def _process_audio_background(run_id: int, node_audio_map: Dict[str, str], config: Dict[str, Any], shaman_config: Optional[Dict[str, Any]] = None) -> None:
+def _process_audio_background(run_id: int, node_audio_map: Dict[str, str], config: Dict[str, Any], shaman_config: Optional[Dict[str, Any]] = None, ground_truth: Optional[Any] = None) -> None:
     """Background task: opens its own SessionLocal, runs the audio workflow, updates run status."""
     db = SessionLocal()
     try:
@@ -173,6 +234,8 @@ def _process_audio_background(run_id: int, node_audio_map: Dict[str, str], confi
         # Persist the detection timeline before the battery sim consumes it, so
         # a sim failure (rolled back below) can never discard audio results.
         db.commit()
+
+        _evaluate_ground_truth_safe(db, run_id, ground_truth)
 
         _run_battery_sim_safe(db, run_id, shaman_config)
 
@@ -212,6 +275,8 @@ class CreateRunRequest(BaseModel):
     edges: List[Dict[str, Any]]
     mediaFiles: Optional[Dict[str, str]] = {}
     stage1Config: Optional[Dict[str, Any]] = None
+    groundTruth: Optional[Any] = None
+    confidenceThreshold: Optional[float] = None
     stage4Config: Optional[Dict[str, Any]] = None
     shamanConfig: Optional[Dict[str, Any]] = {}
     calibrationData: Optional[Dict[str, Any]] = None
@@ -300,8 +365,8 @@ def get_run_detail(run_id: int, db: Session = Depends(get_db)) -> RunDetail:
 
     if not row:
         return RunDetail(
-            id=run_id, name="Unknown Run", 
-            shamani="Unknown", shamanii="Unknown", 
+            id=run_id, name="Unknown Run", model="Unknown",
+            shamanIProcessor="Unknown", shamanIIProcessor="Unknown",
             duration="N/A", status="unknown", metrics={},
         )
 
@@ -320,7 +385,7 @@ def get_run_detail(run_id: int, db: Session = Depends(get_db)) -> RunDetail:
         }
 
     return RunDetail(
-        id=row.id, name=row.name,
+        id=row.id, name=row.name, model=row.scenario,
         duration=row.duration, status=row.status,
         shamanIProcessor=row.shamani, shamanIIProcessor=row.shamanii,
         metrics=metrics,
@@ -392,6 +457,103 @@ def get_dashboard(run_id: int, db: Session = Depends(get_db)):
             {"threshold": pt.threshold, "accuracy": pt.accuracy, "fpr": pt.fpr}
             for pt in sorted(row.acc_curve, key=lambda x: x.threshold)
         ],
+        "pipeline_stats": _pipeline_stats_for_run(db, run_id),
+        "processing": _processing_stats_for_run(db, run_id),
+        "ground_truth": _ground_truth_for_run(db, run_id),
+    }
+
+
+def _ground_truth_for_run(db: Session, run_id: int) -> Optional[Dict[str, Any]]:
+    """Measured detection performance for this run, or None if no log supplied."""
+    r = (
+        db.query(GroundTruthEvalRow)
+        .filter(GroundTruthEvalRow.run_id == run_id)
+        .order_by(GroundTruthEvalRow.id.desc())
+        .first()
+    )
+    if not r:
+        return None
+    try:
+        by_type = json.loads(r.by_type_json or "[]")
+    except (TypeError, ValueError):
+        by_type = []
+    return {
+        "available": True,
+        "total_events": r.total_events,
+        "total_detections": r.total_detections,
+        "matched_events": r.matched_events,
+        "missed_events": r.missed_events,
+        "true_positive_detections": r.true_positive_detections,
+        "false_positive_detections": r.false_positive_detections,
+        "recall": r.recall,
+        "precision": r.precision,
+        "f1": r.f1,
+        "detections_per_event": r.detections_per_event,
+        "by_type": by_type,
+    }
+
+
+def _pipeline_stats_for_run(db: Session, run_id: int) -> Dict[str, Any]:
+    """Real per-stage pass/fail stats keyed by UI stage id. Empty dict if none."""
+    rows = (
+        db.query(PipelineStageStatRow)
+        .filter(PipelineStageStatRow.run_id == run_id)
+        .order_by(PipelineStageStatRow.stage_id)
+        .all()
+    )
+    stats: Dict[str, Any] = {}
+    for r in rows:
+        try:
+            details = json.loads(r.details_json or "[]")
+        except (TypeError, ValueError):
+            details = []
+        stats[r.stage_id] = {
+            "label": r.stage_label,
+            "entered": r.entered,
+            "passed": r.passed,
+            "failed": r.failed,
+            "mean_ms": round(r.mean_ms, 2),
+            "total_ms": round(r.total_ms, 1),
+            "details": details,
+        }
+    return stats
+
+
+def _processing_stats_for_run(db: Session, run_id: int) -> Optional[Dict[str, Any]]:
+    """AED model provenance + run-level processing measurements. None if absent."""
+    r = (
+        db.query(AudioProcessingStatRow)
+        .filter(AudioProcessingStatRow.run_id == run_id)
+        .order_by(AudioProcessingStatRow.id.desc())
+        .first()
+    )
+    if not r:
+        return None
+    try:
+        histogram = json.loads(r.confidence_histogram_json or "[]")
+    except (TypeError, ValueError):
+        histogram = []
+    return {
+        "model_status": r.model_status,
+        "checkpoint_file": r.checkpoint_file,
+        "model_version": r.model_version,
+        "threshold": r.threshold,
+        "device": r.device,
+        "clips_scored": r.clips_scored,
+        "clips_skipped": r.clips_skipped,
+        "mean_confidence": r.mean_confidence,
+        "confidence_histogram": histogram,
+        "audio_seconds": r.audio_seconds,
+        "wall_ms": r.wall_ms,
+        "throughput_cps": r.throughput_cps,
+        # Held-out validation-set figures for the checkpoint used — model card
+        # material, NOT this run's measured accuracy.
+        "validation": {
+            "val_acc": r.val_acc,
+            "not_meaningful_precision": r.val_precision,
+            "not_meaningful_recall": r.val_recall,
+            "not_meaningful_f1": r.val_f1,
+        },
     }
 
 
@@ -517,12 +679,17 @@ def create_run(req: CreateRunRequest, background_tasks: BackgroundTasks, db: Ses
     # background task sees the persisted RunRow on its own session.
     if finalized_audio_map:
         config = {**(req.stage1Config or {}), **(req.stage4Config or {}), **(req.shamanIIConfig or {})}
+        # The UI's Confidence Threshold is the AED gate threshold. Without this
+        # the gate silently fell back to its default and the field did nothing.
+        if req.confidenceThreshold is not None and "tinycnn_threshold" not in config:
+            config["tinycnn_threshold"] = float(req.confidenceThreshold)
         background_tasks.add_task(
             _process_audio_background,
             run.id,
             finalized_audio_map,
             config,
             req.shamanConfig or {},
+            req.groundTruth,
         )
     else:
         # No audio: run the battery sim now with an empty event list and the

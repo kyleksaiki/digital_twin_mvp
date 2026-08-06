@@ -32,8 +32,12 @@ export function ResponsiveBarChart({
   valueFormatter = (v) => `${v}`,
   compact = false,
   compactRowLimit = 8,
+  preserveOrder = false,
 }) {
-  const normalized = normalizeData(data).sort((a, b) => b.value - a.value)
+  const mapped = normalizeData(data)
+  // Histograms and stage sequences are meaningful in their given order;
+  // sorting them by value scrambles the axis.
+  const normalized = preserveOrder ? mapped : [...mapped].sort((a, b) => b.value - a.value)
 
   if (!normalized.length) {
     return <div className="chart-empty">{emptyText}</div>
@@ -69,11 +73,138 @@ export function ResponsiveBarChart({
   )
 }
 
+function defaultAxisFormatter(range) {
+  // Pick decimal places from the span so short ranges don't collapse to
+  // duplicate integer labels (0 0 0 1 1 1 over a one-hour run).
+  if (range >= 12) return (v) => `${Math.round(v)}`
+  if (range >= 3) return (v) => v.toFixed(1)
+  return (v) => v.toFixed(2)
+}
+
+export function PieChart({
+  data,
+  emptyText = 'No data available',
+  valueFormatter = (v) => `${v}`,
+  size = 210,
+  donut = true,
+}) {
+  const normalized = normalizeData(data)
+  const total = normalized.reduce((sum, row) => sum + Math.max(0, row.value), 0)
+
+  if (!normalized.length || total <= 0) {
+    return <div className="chart-empty">{emptyText}</div>
+  }
+
+  const cx = size / 2
+  const cy = size / 2
+  const r = size / 2 - 6
+  const innerR = donut ? r * 0.58 : 0
+
+  const point = (radius, angle) => [
+    cx + radius * Math.cos(angle - Math.PI / 2),
+    cy + radius * Math.sin(angle - Math.PI / 2),
+  ]
+
+  let cursor = 0
+  const slices = normalized
+    .map((row, idx) => {
+      const value = Math.max(0, row.value)
+      const color = row.color || BAR_PALETTE[idx % BAR_PALETTE.length]
+      const pct = (value / total) * 100
+      if (value <= 0) return { ...row, color, pct, path: null }
+
+      const start = (value === total ? 0 : cursor / total) * Math.PI * 2
+      const end = start + (value / total) * Math.PI * 2
+      cursor += value
+
+      // A single 100% slice can't be drawn as an arc (start === end), so it
+      // renders as a ring instead.
+      if (value === total) {
+        return { ...row, color, pct, path: null, full: true }
+      }
+
+      const [x1, y1] = point(r, start)
+      const [x2, y2] = point(r, end)
+      const [x3, y3] = point(innerR, end)
+      const [x4, y4] = point(innerR, start)
+      const largeArc = end - start > Math.PI ? 1 : 0
+      const path = donut
+        ? `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerR} ${innerR} 0 ${largeArc} 0 ${x4} ${y4} Z`
+        : `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`
+      return { ...row, color, pct, path }
+    })
+    .filter(Boolean)
+
+  const fullSlice = slices.find((s) => s.full)
+
+  return (
+    <div className="pie-chart-wrap" style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flex: '0 0 auto' }}>
+        {fullSlice ? (
+          <circle
+            cx={cx}
+            cy={cy}
+            r={(r + innerR) / 2}
+            fill="none"
+            stroke={fullSlice.color}
+            strokeWidth={r - innerR}
+          />
+        ) : (
+          slices.map((slice, idx) =>
+            slice.path ? (
+              <path
+                key={`${slice.label}-${idx}`}
+                d={slice.path}
+                fill={slice.color}
+                stroke="var(--panel, #0f172a)"
+                strokeWidth="1"
+              />
+            ) : null,
+          )
+        )}
+        {donut && (
+          <text x={cx} y={cy + 4} textAnchor="middle" className="line-chart-tick" style={{ fontSize: 13 }}>
+            {valueFormatter(total)}
+          </text>
+        )}
+      </svg>
+
+      <div style={{ flex: '1 1 200px', minWidth: 0, fontSize: 12 }}>
+        {slices.map((slice, idx) => (
+          <div
+            key={`legend-${slice.label}-${idx}`}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}
+          >
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: 2,
+                background: slice.color,
+                flex: '0 0 auto',
+                opacity: slice.value > 0 ? 1 : 0.3,
+              }}
+            ></span>
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {slice.label}
+            </span>
+            <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+              {slice.value > 0 ? `${slice.pct.toFixed(1)}%` : '0%'}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function LineTrendChart({
   points,
   xLabel = 'Time',
   yLabel = 'Value',
   valueFormatter = (v) => `${Math.round(v)}`,
+  xFormatter = null,
+  autoScaleY = false,
 }) {
   if (!points || points.length < 2) {
     return <div className="chart-empty">Not enough data points</div>
@@ -90,11 +221,25 @@ export function LineTrendChart({
 
   const xMin = Math.min(...points.map((p) => p.x))
   const xMax = Math.max(...points.map((p) => p.x))
-  const yMin = Math.min(...points.map((p) => p.y), 0)
-  const yMax = Math.max(...points.map((p) => p.y), 1)
+  // autoScaleY zooms to the data's own range. Without it a 0.02% battery drop
+  // is invisible on a forced 0-100 axis.
+  const rawYMin = Math.min(...points.map((p) => p.y))
+  const rawYMax = Math.max(...points.map((p) => p.y))
+  let yMin
+  let yMax
+  if (autoScaleY) {
+    const spread = rawYMax - rawYMin
+    const pad = spread > 0 ? spread * 0.15 : Math.max(Math.abs(rawYMax) * 0.001, 0.01)
+    yMin = rawYMin - pad
+    yMax = rawYMax + pad
+  } else {
+    yMin = Math.min(rawYMin, 0)
+    yMax = Math.max(rawYMax, 1)
+  }
 
   const xRange = xMax - xMin || 1
   const yRange = yMax - yMin || 1
+  const xTickFormatter = xFormatter || defaultAxisFormatter(xRange)
 
   const toX = (x) => padLeft + ((x - xMin) / xRange) * plotWidth
   const toY = (y) => padTop + (1 - (y - yMin) / yRange) * plotHeight
@@ -130,7 +275,7 @@ export function LineTrendChart({
           return (
             <g key={`x-${i}`}>
               <line x1={x} y1={padTop} x2={x} y2={height - padBottom} stroke="var(--border)" strokeWidth="1" />
-              <text x={x} y={height - padBottom + 16} textAnchor="middle" className="line-chart-tick">{Math.round(value)}</text>
+              <text x={x} y={height - padBottom + 16} textAnchor="middle" className="line-chart-tick">{xTickFormatter(value)}</text>
             </g>
           )
         })}

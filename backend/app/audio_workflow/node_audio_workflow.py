@@ -25,6 +25,10 @@ try:
         write_timeline_json,
     )
     from .tiny_cnn_birdcall import TinyCNNBirdcallGate
+    try:
+        from app.services.aed.gate import AEDMeaningfulGate
+    except Exception:
+        AEDMeaningfulGate = None
 except ImportError:  # pragma: no cover - supports running as a script
     from audio_event_common import (
         BasicBirdPrefilter,
@@ -37,6 +41,7 @@ except ImportError:  # pragma: no cover - supports running as a script
         write_timeline_json,
     )
     from tiny_cnn_birdcall import TinyCNNBirdcallGate
+    AEDMeaningfulGate = None  # standalone-script mode: app package not importable
 
 
 @dataclass
@@ -89,10 +94,13 @@ class HumanPresenceAdapter:
         t0 = time.perf_counter()
         metadata = node_metadata or {}
         audio_features = self._extract_audio_features(clip, sr)
+        t1 = time.perf_counter()
         context_features = self._build_context_features(event, metadata, audio_features)
+        t2 = time.perf_counter()
         feature_row = {**audio_features, **context_features}
         confidence = self._score_proxy(feature_row)
-        inference_ms = (time.perf_counter() - t0) * 1000.0
+        t3 = time.perf_counter()
+        inference_ms = (t3 - t0) * 1000.0
 
         return HumanPresenceResult(
             source_file=event.source_file,
@@ -104,6 +112,12 @@ class HumanPresenceAdapter:
                 "reason": "proxy_until_trained_human_presence_model_is_available",
                 "threshold": self.threshold,
                 "features": feature_row,
+                "had_node_metadata": bool(metadata),
+                "timing_ms": {
+                    "features": (t1 - t0) * 1000.0,
+                    "context": (t2 - t1) * 1000.0,
+                    "score": (t3 - t2) * 1000.0,
+                },
             },
         )
 
@@ -492,7 +506,12 @@ def run_node_audio_workflow(
     metadata = _read_node_metadata(metadata_json)
 
     stage1 = BasicBirdPrefilter()
-    stage2 = TinyCNNBirdcallGate(weights_path=tinycnn_weights, threshold=tinycnn_threshold)
+    # Stage 2 gate: the new AED meaningful-audio model. Falls back to the
+    # legacy birdcall gate only if the AED service failed to import entirely.
+    if AEDMeaningfulGate is not None:
+        stage2 = AEDMeaningfulGate(weights_path=tinycnn_weights, threshold=tinycnn_threshold)
+    else:
+        stage2 = TinyCNNBirdcallGate(weights_path=tinycnn_weights, threshold=tinycnn_threshold)
     human_presence = HumanPresenceAdapter(threshold=human_presence_threshold)
     birdnet = None if skip_birdnet else BirdNETConfirm(min_confidence=birdnet_threshold)
 

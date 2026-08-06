@@ -1,6 +1,7 @@
 """Audio processing services for the staged workflow."""
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import logging
@@ -20,6 +21,14 @@ except Exception as exc:
 	logger.exception("Failed to import node audio workflow: %s", exc)
 	run_node_audio_workflow = None
 
+try:
+	from app.services.aed import stage_stats as aed_stage_stats
+	from app.services.aed.gate import get_model_info as aed_get_model_info
+except Exception as exc:
+	logger.exception("Failed to import AED stage stats: %s", exc)
+	aed_stage_stats = None
+	aed_get_model_info = None
+
 
 def _resolve_path(path: str) -> Path:
 	path_obj = Path(path)
@@ -38,16 +47,24 @@ def _validate_local_path(path: Optional[str], label: str) -> None:
 
 def _confidence_from_event(event: Dict[str, Any]) -> float:
 	shaman_ii = event.get("shaman_ii") or {}
+	shaman_i = event.get("shaman_i") or {}
 	try:
-		return float(shaman_ii.get("confidence", 0.0))
+		value = shaman_ii.get("confidence")
+		if value is None:
+			value = shaman_i.get("confidence", 0.0)
+		return float(value or 0.0)
 	except (TypeError, ValueError):
 		return 0.0
 
 
 def _latency_from_event(event: Dict[str, Any]) -> int:
 	shaman_ii = event.get("shaman_ii") or {}
+	shaman_i = event.get("shaman_i") or {}
 	try:
-		return int(round(float(shaman_ii.get("inference_ms", 0.0))))
+		value = shaman_ii.get("inference_ms")
+		if value is None:
+			value = shaman_i.get("inference_ms", 0.0)
+		return int(round(float(value or 0.0)))
 	except (TypeError, ValueError):
 		return 0
 
@@ -63,7 +80,9 @@ def _event_label(event: Dict[str, Any]) -> str:
 	if event_type == "human_presence_confirmed":
 		return "Human Presence"
 	if event_type == "birdnet_skipped":
-		return "Bird"
+		# With the AED gate, a stage-2-confirmed event that is not human presence
+		# is "meaningful audio" (bird, insect, other animal) — not provably a bird.
+		return "Wildlife"
 	return str(label or event_type).replace("_", " ").title()
 
 
@@ -213,12 +232,17 @@ def process_run_audio(
 	out_root_path.mkdir(parents=True, exist_ok=True)
 
 	results: List[Dict[str, Any]] = []
+	aggregate_stats: Dict[str, Dict[str, Any]] = {}
+	aggregate_histogram: Dict[str, Any] = {"bins": [], "scored": 0, "mean_confidence": 0.0}
+	total_audio_seconds = 0.0
+	total_wall_ms = 0.0
 	for index, (explicit_node_id, input_audio) in enumerate(inputs):
 		_validate_local_path(input_audio, "Audio path")
 		resolved_audio = _resolve_path(input_audio)
 		node_id = explicit_node_id or _audio_node_id(str(resolved_audio), index)
 		node_out_dir = out_root_path / f"run_{run_id}" / node_id
 
+		wall_start = time.perf_counter()
 		try:
 			result = run_node_audio_workflow(
 				input_audio=str(resolved_audio),
@@ -236,8 +260,26 @@ def process_run_audio(
 			)
 		except RuntimeError as exc:
 			raise HTTPException(status_code=500, detail=str(exc)) from exc
+		wall_ms = (time.perf_counter() - wall_start) * 1000.0
+		total_wall_ms += wall_ms
 
 		_persist_workflow_result(db, run_id, node_id, result["backend_payload"])
+
+		# Pipeline stage statistics — derived from the real timelines, never assumed.
+		if aed_stage_stats is not None:
+			try:
+				audio_seconds = _audio_duration_seconds(resolved_audio)
+				total_audio_seconds += audio_seconds or 0.0
+				downstream_ms = _downstream_ms(result["backend_payload"])
+				prefilter_ms = max(0.0, wall_ms - downstream_ms)
+				node_stats = aed_stage_stats.compute_stage_stats(
+					result["backend_payload"], audio_seconds, prefilter_ms=prefilter_ms
+				)
+				aed_stage_stats.merge_stage_stats(aggregate_stats, node_stats)
+				histogram = aed_stage_stats.confidence_histogram(result["backend_payload"])
+				_merge_histograms(aggregate_histogram, histogram)
+			except Exception:
+				logger.exception("Failed to compute pipeline stage stats for run %s node %s", run_id, node_id)
 		results.append(
 			{
 				"node_id": node_id,
@@ -247,7 +289,72 @@ def process_run_audio(
 			}
 		)
 
+	if aed_stage_stats is not None and aggregate_stats:
+		try:
+			model_info = aed_get_model_info() if aed_get_model_info else {}
+			aed_stage_stats.persist_pipeline_stats(
+				db,
+				run_id,
+				aggregate_stats,
+				model_info,
+				threshold=tinycnn_threshold,
+				audio_seconds=total_audio_seconds,
+				wall_ms=total_wall_ms,
+				histogram=aggregate_histogram,
+			)
+		except Exception:
+			logger.exception("Failed to persist pipeline stage stats for run %s", run_id)
+
 	return results
+
+
+def _downstream_ms(payload: Dict[str, Any]) -> float:
+	"""Total measured time spent in stages 2-5, used to isolate the stage-1 scan."""
+	timelines = payload.get("stage_timelines") or {}
+	total = 0.0
+	for event in timelines.get("stage_2_tinycnn_birdcall") or []:
+		total += float((event.get("shaman_ii") or {}).get("inference_ms") or 0.0)
+	for event in timelines.get("stage_4_human_presence") or []:
+		total += float((event.get("shaman_ii") or {}).get("inference_ms") or 0.0)
+	return total
+
+
+def _audio_duration_seconds(path: Path) -> Optional[float]:
+	"""Read audio duration from the file header without decoding the clip."""
+	try:
+		import soundfile
+
+		info = soundfile.info(str(path))
+		if info.samplerate and info.frames:
+			return float(info.frames) / float(info.samplerate)
+	except Exception:
+		logger.debug("soundfile could not read duration for %s", path, exc_info=True)
+	try:
+		import librosa
+
+		duration = float(librosa.get_duration(path=str(path)))
+		return duration if duration > 0 else None
+	except Exception:
+		logger.debug("librosa could not read duration for %s", path, exc_info=True)
+	return None
+
+
+def _merge_histograms(aggregate: Dict[str, Any], histogram: Dict[str, Any]) -> None:
+	"""Accumulate one node file's confidence histogram into the run aggregate."""
+	prev_scored = int(aggregate.get("scored") or 0)
+	new_scored = int(histogram.get("scored") or 0)
+	if not aggregate.get("bins"):
+		aggregate["bins"] = [dict(b) for b in histogram.get("bins") or []]
+	else:
+		for target, source in zip(aggregate["bins"], histogram.get("bins") or []):
+			target["count"] = int(target.get("count") or 0) + int(source.get("count") or 0)
+	total = prev_scored + new_scored
+	if total > 0:
+		aggregate["mean_confidence"] = (
+			aggregate.get("mean_confidence", 0.0) * prev_scored
+			+ histogram.get("mean_confidence", 0.0) * new_scored
+		) / total
+	aggregate["scored"] = total
 
 
 __all__ = ["process_run_audio", "run_node_audio_workflow"]

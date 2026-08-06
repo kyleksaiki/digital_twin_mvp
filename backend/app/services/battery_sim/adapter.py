@@ -39,12 +39,15 @@ COMPONENT_TO_SIM_FIELD = {
 
 # AIEventRow.event_type stores display labels (see _event_label in
 # services/audio_processing.py), not raw workflow event types:
-#   birdnet_skipped            -> "Bird"           (stage-2 skipped: no transmit)
+#   birdnet_skipped            -> "Wildlife"       (AED gate: meaningful audio,
+#                                 stage-2 confirmed, classified locally,
+#                                 no transmit — previously labeled "Bird")
 #   human_presence_confirmed   -> "Human Presence" (confirmed: transmit)
 #   bird_confirmed             -> species name     (confirmed: transmit;
-#                                 only emitted when a species is present)
-# So "Bird" is exactly the unconfirmed case and everything else is confirmed.
-UNCONFIRMED_LABELS = {"Bird"}
+#                                 only emitted when BirdNET runs and finds a
+#                                 species)
+# "Bird" is kept for runs created before the AED relabeling.
+UNCONFIRMED_LABELS = {"Bird", "Wildlife"}
 
 
 def _resolve_component_watts(cvp: Any, default_watts: float) -> float:
