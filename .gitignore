@@ -12,3 +12,11 @@ backend/audio_workflow_outputs/
 uploads/
 # YOLO weights (downloaded on first use of Human Visual Detection)
 *.pt
+# PyInstaller build artifacts
+/backend/build/
+/backend/dist/
+# Rust / Tauri build artifacts
+/src-tauri/target/
+# Tauri sidecar binary is produced from backend/dist; the canonical
+# source-of-truth artifact lives there.
+/src-tauri/binaries/*.exe

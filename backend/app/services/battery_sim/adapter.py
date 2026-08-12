@@ -23,9 +23,12 @@ from sqlalchemy.orm import Session
 
 from app.db_models import AIEventRow, BatterySimResultRow, NetworkNodeRow, NodeAudioRow, RunRow
 from app.services.battery_sim.single_node_simulator import NodeConfig, run_from_dict
+from app.utils.paths import get_base_path, get_user_data_path, is_frozen
 
 logger = logging.getLogger(__name__)
-PROJECT_ROOT = Path(__file__).resolve().parents[4]
+# DATA_ROOT: writable root for state (uploads, audio). Mirrors the
+# upload route — frozen builds write to the per-user app-data folder.
+PROJECT_ROOT = get_user_data_path() if is_frozen() else get_base_path()
 
 # Configure Run component key -> simulator NodeConfig field.
 # The other four components (receive, cameraImage, cameraSleep, micSleep) are

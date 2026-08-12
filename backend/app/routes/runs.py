@@ -15,11 +15,12 @@ from app.database import get_db, SessionLocal
 from app.services.run_export_service import RunExportService
 from app.services.audio_processing import process_run_audio, run_node_audio_workflow
 from app.db_models import (
-    RunRow, RunMetricsRow, NetworkNodeRow, NetworkEdgeRow, 
-    RerouteEventRow, DetectionByTypeRow, LatencyByRankRow, 
+    RunRow, RunMetricsRow, NetworkNodeRow, NetworkEdgeRow,
+    RerouteEventRow, DetectionByTypeRow, LatencyByRankRow,
     AccuracyConfidenceCurveRow, NodeEventRow, NodeChildRow, AIEventRow, NodeAudioRow,
     PipelineStageStatRow, AudioProcessingStatRow, GroundTruthEvalRow,
 )
+from app.utils.paths import ensure_user_data_path, get_base_path, get_user_data_path, is_frozen
 
 
 logger = logging.getLogger(__name__)
@@ -32,20 +33,28 @@ except Exception as exc:
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-UPLOAD_ROOT = PROJECT_ROOT / "uploads"
+# `DATA_ROOT` is the root for writable state (uploads, generated files,
+# pipeline output) and matches where the audio upload route writes. In
+# dev it's the backend/ dir for parity; in a frozen build it's the
+# per-user app-data folder. Relative paths coming from the frontend
+# are resolved against this root.
+DATA_ROOT = get_user_data_path() if is_frozen() else get_base_path()
+UPLOAD_ROOT = DATA_ROOT / "uploads"
 PENDING_ROOT = UPLOAD_ROOT / "pending"
 
 
 def _resolve_path(path: str) -> Path:
     candidate = Path(path)
     if not candidate.is_absolute():
-        candidate = PROJECT_ROOT / candidate
+        candidate = DATA_ROOT / candidate
     return candidate
 
 
 def _relative_path(path: Path) -> str:
-    return path.relative_to(PROJECT_ROOT).as_posix()
+    # _relative_path is only called for paths under DATA_ROOT. In the
+    # frozen build DATA_ROOT is the user-data folder, which means saved
+    # paths in the DB are portable across cwd (good).
+    return path.relative_to(DATA_ROOT).as_posix()
 
 
 def _is_under(path: Path, root: Path) -> bool:

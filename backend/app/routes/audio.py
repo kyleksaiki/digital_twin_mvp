@@ -7,13 +7,29 @@ from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
+from app.utils.paths import ensure_user_data_path, get_user_data_path, get_base_path, is_frozen
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-UPLOAD_ROOT = PROJECT_ROOT / "uploads"
+
+# Uploads go in a writable location: in dev that's the backend/ root
+# (where they have always lived), and in a frozen build that's the
+# per-user app-data folder (uploads must NEVER live inside _MEIPASS,
+# which is a read-only temp dir).
+if is_frozen():
+    DATA_ROOT = get_user_data_path()
+else:
+    DATA_ROOT = get_base_path()
+UPLOAD_ROOT = DATA_ROOT / "uploads"
 PENDING_ROOT = UPLOAD_ROOT / "pending"
 CHUNK_SIZE = 8 * 1024 * 1024
 
 router = APIRouter(prefix="/api/audio", tags=["audio"])
+
+
+def _ensure_data_dirs() -> None:
+    """Create upload + pending dirs lazily. Idempotent and safe to call per request."""
+    ensure_user_data_path()
+    UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+    PENDING_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 def _sanitize_node_id(node_id: str) -> str:
@@ -29,7 +45,9 @@ def _build_filename(node_id: str, filename: str) -> str:
 
 
 def _relative_path(path: Path) -> str:
-    return path.relative_to(PROJECT_ROOT).as_posix()
+    # Path is always under DATA_ROOT in both dev and frozen modes,
+    # so relative_to is well-defined.
+    return path.relative_to(DATA_ROOT).as_posix()
 
 
 @router.post("/upload")
@@ -42,6 +60,7 @@ async def upload_audio(
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename")
 
+    _ensure_data_dirs()
     upload_id = uuid.uuid4().hex
     target_dir = (
         UPLOAD_ROOT / f"run_{run_id}"

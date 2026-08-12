@@ -10,10 +10,14 @@ from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.db_models import AIEventRow, DetectionByTypeRow, NetworkNodeRow, NodeEventRow, RunMetricsRow, RunRow
+from app.utils.paths import get_base_path, get_user_data_path, is_frozen
 
 
 logger = logging.getLogger(__name__)
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+# DATA_ROOT mirrors the upload route: where saved audio + generated
+# output actually live on disk. Under a frozen build this is the
+# per-user app-data folder so paths round-trip across launches.
+PROJECT_ROOT = get_user_data_path() if is_frozen() else get_base_path()
 
 try:
 	from app.audio_workflow.node_audio_workflow import run_node_audio_workflow

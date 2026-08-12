@@ -9,10 +9,14 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 import threading
 import time
+from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+
+from app.utils.paths import get_base_path, is_frozen
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +44,30 @@ _model = None
 _model_lock = threading.Lock()
 
 
+def _resolve_model_path() -> str:
+    """Locate the YOLO checkpoint.
+
+    In dev: pass the bare filename to ultralytics, which resolves it from
+    the cwd (the backend/ dir at startup) and otherwise downloads it.
+
+    In a PyInstaller bundle: PyInstaller unpacks the data tree under
+    ``sys._MEIPASS``. We bundle ``app/routes/vision_models/yolo11n.pt``
+    (see backend.spec) and load it by absolute path so ultralytics
+    does not need network access at first use and the cwd is irrelevant.
+    """
+    if is_frozen():
+        bundled = get_base_path() / "app" / "routes" / "vision_models" / MODEL_NAME
+        if bundled.exists():
+            return str(bundled)
+        # Fall through to the bare name — ultralytics will look in cwd
+        # and may still download if the bundled file is missing.
+        logger.warning(
+            "Bundled YOLO checkpoint not found at %s; falling back to ultralytics' "
+            "default lookup (may require network access).", bundled,
+        )
+    return MODEL_NAME
+
+
 def _get_model():
     """Load the YOLO model once and cache it for the process lifetime."""
     global _model
@@ -47,8 +75,9 @@ def _get_model():
         return _model
     with _model_lock:
         if _model is None:
-            logger.info("Loading YOLO model %s (first use downloads weights)", MODEL_NAME)
-            _model = YOLO(MODEL_NAME)
+            model_path = _resolve_model_path()
+            logger.info("Loading YOLO model from %s", model_path)
+            _model = YOLO(model_path)
     return _model
 
 

@@ -11,6 +11,8 @@ import tempfile
 import torch
 import torch.nn as nn
 
+from app.utils.paths import get_base_path
+
 os.environ.setdefault("NUMBA_CACHE_DIR", os.path.join(tempfile.gettempdir(), "numba_cache"))
 
 try:
@@ -141,9 +143,16 @@ class TinyCNNBirdcallGate:
         self.model_status = "fallback_no_weights"
 
         if weights_path:
-            path = Path(weights_path)
-            if not path.exists():
+            # Resolve relative weights paths against the bundle base so
+            # PyInstaller builds can find a checkpoint shipped under
+            # `app/audio_workflow/models/` (see backend.spec). Absolute
+            # paths (e.g. from the user's filesystem) are used as-is.
+            candidate = Path(weights_path)
+            if not candidate.is_absolute():
+                candidate = get_base_path() / candidate
+            if not candidate.exists():
                 raise FileNotFoundError(f"TinyCNN weights not found: {weights_path}")
+            path = candidate
             self.model = TinyCNN().to(self.device)
             state = torch.load(path, map_location=self.device)
             if isinstance(state, dict) and "model_state_dict" in state:

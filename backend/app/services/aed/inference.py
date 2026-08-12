@@ -20,6 +20,7 @@ sections differ.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
@@ -32,6 +33,7 @@ except Exception:  # pragma: no cover - depends on install
 import torch
 
 from app.services.aed.architecture import TinyCNN
+from app.utils.paths import get_base_path
 
 # ---------------------------------------------------------------------------
 # Mel spectrogram parameters (must match training — do not change)
@@ -127,22 +129,37 @@ def clip_to_mel(clip: np.ndarray, sr: int) -> np.ndarray:
 	return mel_db[:, :N_FRAMES].astype(np.float32)
 
 
-DEFAULT_MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+DEFAULT_MODEL_DIR = get_base_path() / "app" / "services" / "aed" / "models"
 
 
 def resolve_checkpoint_path() -> Optional[str]:
-	"""AED_MODEL_PATH env var wins; else tinycnn_v3.pth; else newest tinycnn_v*.pth present."""
+	"""AED_MODEL_PATH env var wins; else tinycnn_v3.pth; else newest tinycnn_v*.pth present.
+
+	`DEFAULT_MODEL_DIR` is resolved through `get_base_path()`, so this
+	function works both in dev (where models live next to this file under
+	`backend/app/services/aed/models/`) and inside a PyInstaller bundle
+	(where the same path exists under `sys._MEIPASS`).
+	"""
 	env_path = os.getenv("AED_MODEL_PATH", "").strip()
 	if env_path:
-		return env_path if os.path.exists(env_path) else None
-	preferred = os.path.join(DEFAULT_MODEL_DIR, "tinycnn_v3.pth")
-	if os.path.exists(preferred):
-		return preferred
-	if os.path.isdir(DEFAULT_MODEL_DIR):
+		# Resolve relative env paths against the bundle base, not the
+		# process cwd — frozen executables change cwd based on how they
+		# were launched, which is not a stable place to look for assets.
+		candidate = Path(env_path)
+		if not candidate.is_absolute():
+			candidate = get_base_path() / candidate
+		if candidate.exists():
+			return str(candidate)
+		# Fall through to the bundled dir if the env path is missing;
+		# this keeps the function best-effort rather than failing hard.
+	preferred = DEFAULT_MODEL_DIR / "tinycnn_v3.pth"
+	if preferred.exists():
+		return str(preferred)
+	if DEFAULT_MODEL_DIR.is_dir():
 		candidates = sorted(
-			f for f in os.listdir(DEFAULT_MODEL_DIR)
-			if f.startswith("tinycnn_v") and f.endswith(".pth")
+			f.name for f in DEFAULT_MODEL_DIR.iterdir()
+			if f.name.startswith("tinycnn_v") and f.suffix == ".pth"
 		)
 		if candidates:
-			return os.path.join(DEFAULT_MODEL_DIR, candidates[-1])
+			return str(DEFAULT_MODEL_DIR / candidates[-1])
 	return None
