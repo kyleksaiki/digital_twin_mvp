@@ -54,26 +54,31 @@ def health_check():
     return {"status": "ok"}
 
 
+def _start_stdin_watchdog() -> None:
+    """Daemon thread that terminates the backend if the parent Tauri pipe closes."""
+    import sys
+    import threading
+
+    def _watch():
+        try:
+            sys.stdin.read()
+        except Exception:
+            pass
+        finally:
+            os._exit(0)
+
+    t = threading.Thread(target=_watch, daemon=True)
+    t.start()
+
+
 def _serve() -> None:
-    """Start uvicorn from inside the frozen sidecar.
-
-    PyInstaller packages ``app/main.py`` as the entry script; without
-    this bootstrap the frozen exe would import the FastAPI app and exit
-    without ever opening a socket. The Tauri shell plugin relies on
-    localhost:8000 being live for the frontend to call.
-
-    In dev (`python -m app.main`), this is skipped unless ``--serve``
-    is passed — `uvicorn app.main:app --reload` is the normal dev path.
-
-    Frozen-mode quirk: when PyInstaller runs ``app/main.py`` as the
-    entry script, it shows up under ``sys.modules['__main__']`` only.
-    ``uvicorn.run("app.main:app", ...)`` re-imports the module by name,
-    which fails because ``app.main`` isn't in ``sys.modules``. We work
-    around that by registering the already-loaded module under both
-    names before handing off to uvicorn.
-    """
+    """Start uvicorn from inside the frozen sidecar."""
     import sys
     import uvicorn
+
+    # Monitor parent stdin pipe so sidecar exits if parent crashes
+    _start_stdin_watchdog()
+
     if getattr(sys, "frozen", False):
         sys.modules.setdefault("app.main", sys.modules["__main__"])
     host = os.getenv("BACKEND_HOST", "127.0.0.1")
@@ -83,9 +88,6 @@ def _serve() -> None:
         host=host,
         port=port,
         log_level=os.getenv("BACKEND_LOG_LEVEL", "info"),
-        # ``ws=websockets_protocols`` is intentionally omitted: the
-        # frontend only needs HTTP/1.1, and dropping websockets keeps
-        # the sidecar bundle meaningfully smaller.
     )
 
 
@@ -94,8 +96,6 @@ if __name__ == "__main__":
     if "--serve" in sys.argv or getattr(sys, "frozen", False):
         _serve()
     else:
-        # Dev: `python -m app.main` is fine for sanity-checking imports,
-        # but the real dev server is `uvicorn app.main:app --reload`.
         print(
             "App imported. Run `uvicorn app.main:app --reload` for dev, "
             "or `python -m app.main --serve` to start uvicorn in-process.",
