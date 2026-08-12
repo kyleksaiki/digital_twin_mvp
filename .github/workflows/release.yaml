@@ -1,0 +1,84 @@
+name: Desktop Release Build
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers automatically when you push a tag like v1.0.0
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions UI
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'windows-latest'
+            python-ext: '.exe'
+          - platform: 'macos-latest'
+            python-ext: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Toolchain Setups
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      # Step 1: Build Frontend
+      - name: Install & Build Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      # Step 2: Build Backend Executable (PyInstaller)
+      - name: Install Dependencies & Freeze Backend
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+          pyinstaller shaman-backend.spec --noconfirm
+
+      # STAGE SIDECAR: Rename Binary with Target Triple
+      - name: Stage Sidecar Binary for Tauri
+        shell: bash
+        run: |
+          # Extract the exact Rust target triple (e.g. x86_64-pc-windows-msvc or aarch64-apple-darwin)
+          TARGET_TRIPLE=$(rustc -vV | grep host | cut -d' ' -f2)
+          mkdir -p src-tauri/binaries
+          
+          # Copy and rename sidecar binary
+          cp backend/dist/shaman-backend${{ matrix.python-ext }} src-tauri/binaries/shaman-backend-${TARGET_TRIPLE}${{ matrix.python-ext }}
+          
+          echo "Successfully staged sidecar to src-tauri/binaries/shaman-backend-${TARGET_TRIPLE}${{ matrix.python-ext }}"
+
+      # Step 3: Build Final Tauri Desktop App & Publish
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'Shaman Digital Twin v__VERSION__'
+          releaseBody: 'Release build for Shaman Digital Twin desktop application.'
+          releaseDraft: true
+          prerelease: false

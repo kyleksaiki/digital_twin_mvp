@@ -8,6 +8,7 @@ reported as unavailable rather than invented.
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Query
@@ -25,6 +26,26 @@ from app.models import ChatQuery, ChatResponse
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
+
+# --- Load .env configuration from %APPDATA%\shaman ---
+try:
+    from dotenv import load_dotenv
+
+    appdata = os.getenv("APPDATA")
+    if appdata:
+        shaman_env = Path(appdata) / "ShamanDigitalTwin" / ".env"
+    else:
+        # Cross-platform fallback (~/.config/shaman/.env)
+        shaman_env = Path.home() / ".config" / "ShamanDigitalTwin" / ".env"
+
+    if shaman_env.is_file():
+        load_dotenv(dotenv_path=shaman_env)
+        logger.info("Loaded AI environment variables from %s", shaman_env)
+    else:
+        # Fallback to backend/.env or working directory .env
+        load_dotenv()
+except ImportError:
+    logger.warning("python-dotenv not installed; relying on existing system environment variables.")
 
 # Model is configurable so you can switch without touching code.
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
@@ -45,7 +66,7 @@ except Exception as exc:  # openai package missing entirely
 
 NO_KEY_MESSAGE = (
     "The AI assistant isn't configured on this server yet. Add an OPENAI_API_KEY "
-    "to backend/.env and restart the backend to enable it."
+    "to %APPDATA%\\ShamanDigitalTwin\\.env (or backend/.env) and restart to enable it."
 )
 
 SYSTEM_PROMPT = (
