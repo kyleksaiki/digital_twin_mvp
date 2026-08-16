@@ -1,4 +1,7 @@
 # Shaman Digital Twin
+**To see the finalized work all you have to do in download and run Shaman Digital Twin_0.1.0_x64-setup.exe on the Pre-release one https://github.com/kyleksaiki/digital_twin_mvp/releases**
+
+
 
 ![Image of a flowchart of the software architecture](SoftwareArchitectureDiagram.png)
 
